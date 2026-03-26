@@ -1,0 +1,17 @@
+name = "galchemy"
+version = "0.1.0"
+description = "SQL query builder core for Gleam"
+licences = ["Apache-2.0"]
+repository = { type = "github", user = "RedHelium", repo = "galchemy" }
+links = [
+  { title = "GitHub", href = "https://github.com/RedHelium/galchemy" },
+  { title = "Hex", href = "https://hex.pm/packages/galchemy" },
+  { title = "HexDocs", href = "https://hexdocs.pm/galchemy" },
+]
+
+[dependencies]
+gleam_stdlib = ">= 0.44.0 and < 2.0.0"
+pog = ">= 4.1.0 and < 5.0.0"
+
+[dev_dependencies]
+gleeunit = ">= 1.0.0 and < 2.0.0"
