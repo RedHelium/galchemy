@@ -5,6 +5,7 @@ import galchemy/ast/predicate.{type Predicate}
 import galchemy/ast/schema.{type ColumnMeta, type Table}
 import gleam/option.{type Option}
 
+/// Represents any top-level query variant supported by the AST.
 pub type Query {
   Select(SelectQuery)
   Insert(InsertQuery)
@@ -12,6 +13,7 @@ pub type Query {
   Delete(DeleteQuery)
 }
 
+/// Represents a SELECT query with projection, source, filtering, and pagination.
 pub type SelectQuery {
   SelectQuery(
     items: List(SelectItem),
@@ -25,6 +27,7 @@ pub type SelectQuery {
   )
 }
 
+/// Represents an INSERT query with explicit column-value pairs and RETURNING items.
 pub type InsertQuery {
   InsertQuery(
     table: Table,
@@ -33,6 +36,7 @@ pub type InsertQuery {
   )
 }
 
+/// Represents a DELETE query with an optional filter and RETURNING items.
 pub type DeleteQuery {
   DeleteQuery(
     table: Table,
@@ -41,6 +45,7 @@ pub type DeleteQuery {
   )
 }
 
+/// Represents an UPDATE query with assignments, filtering, and RETURNING items.
 pub type UpdateQuery {
   UpdateQuery(
     table: Table,

@@ -1,5 +1,6 @@
 import galchemy/ast/expression.{type Expression}
 
+/// Enumerates comparison operators used by binary predicates.
 pub type ComparisonOp {
   Eq
   Neq
@@ -9,6 +10,7 @@ pub type ComparisonOp {
   Lte
 }
 
+/// Represents boolean conditions used in WHERE and JOIN clauses.
 pub type Predicate {
   Comparison(lhs: Expression, op: ComparisonOp, rhs: Expression)
   And(left: Predicate, right: Predicate)
