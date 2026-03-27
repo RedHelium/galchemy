@@ -1,5 +1,6 @@
-import gleam/io
+import galchemy/examples/simple_select
 
 pub fn main() -> Nil {
-  io.println("Hello from galchemy!")
+  simple_select.main()
 }
+
