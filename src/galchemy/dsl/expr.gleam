@@ -20,6 +20,63 @@ pub fn call(
   expression.FunctionExpr(name: name, arguments: arguments)
 }
 
+pub fn neg(value: expression.Expression) -> expression.Expression {
+  expression.UnaryOpExpr(operator: expression.Negate, operand: value)
+}
+
+pub fn add(
+  lhs: expression.Expression,
+  rhs: expression.Expression,
+) -> expression.Expression {
+  expression.BinaryOpExpr(lhs: lhs, operator: expression.Add, rhs: rhs)
+}
+
+pub fn subtract(
+  lhs: expression.Expression,
+  rhs: expression.Expression,
+) -> expression.Expression {
+  expression.BinaryOpExpr(lhs: lhs, operator: expression.Subtract, rhs: rhs)
+}
+
+pub fn multiply(
+  lhs: expression.Expression,
+  rhs: expression.Expression,
+) -> expression.Expression {
+  expression.BinaryOpExpr(lhs: lhs, operator: expression.Multiply, rhs: rhs)
+}
+
+pub fn divide(
+  lhs: expression.Expression,
+  rhs: expression.Expression,
+) -> expression.Expression {
+  expression.BinaryOpExpr(lhs: lhs, operator: expression.Divide, rhs: rhs)
+}
+
+pub fn concat(
+  lhs: expression.Expression,
+  rhs: expression.Expression,
+) -> expression.Expression {
+  expression.BinaryOpExpr(lhs: lhs, operator: expression.Concat, rhs: rhs)
+}
+
+pub fn over(
+  function: expression.Expression,
+  partition_by: List(expression.Expression),
+  order_by: List(expression.Order),
+) -> expression.Expression {
+  expression.WindowExpr(
+    function: function,
+    window: expression.WindowDefinition(
+      partition_by: partition_by,
+      order_by: order_by,
+    ),
+  )
+}
+
+pub fn subquery(query: expression.SelectQuery) -> expression.Expression {
+  expression.SubqueryExpr(query)
+}
+
 // Wraps an integer literal as a SQL expression.
 pub fn int(value: Int) -> expression.Expression {
   expression.ValueExpr(expression.Int(value))
@@ -77,6 +134,18 @@ pub fn min(value: expression.Expression) -> expression.Expression {
 
 pub fn max(value: expression.Expression) -> expression.Expression {
   call("MAX", [value])
+}
+
+pub fn row_number() -> expression.Expression {
+  call("ROW_NUMBER", [])
+}
+
+pub fn rank() -> expression.Expression {
+  call("RANK", [])
+}
+
+pub fn dense_rank() -> expression.Expression {
+  call("DENSE_RANK", [])
 }
 
 pub fn lower(value: expression.Expression) -> expression.Expression {

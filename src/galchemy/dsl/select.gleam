@@ -1,21 +1,20 @@
 import galchemy/ast/expression
-import galchemy/ast/join
-import galchemy/ast/order
-import galchemy/ast/predicate
-import galchemy/ast/query
 import galchemy/ast/schema
 import gleam/list
 import gleam/option
 
-// Creates an empty SELECT query with the provided select items.
-pub fn select(items: List(expression.SelectItem)) -> query.SelectQuery {
-  query.SelectQuery(
+pub fn select(
+  items: List(expression.SelectItem),
+) -> expression.SelectQuery {
+  expression.SelectQuery(
+    ctes: [],
     items: items,
     from: option.None,
     joins: [],
     where_: option.None,
     group_by: [],
     having_: option.None,
+    unions: [],
     order_by: [],
     limit: option.None,
     offset: option.None,
@@ -23,84 +22,162 @@ pub fn select(items: List(expression.SelectItem)) -> query.SelectQuery {
   )
 }
 
-// Sets the source table for the SELECT query.
-pub fn from(query: query.SelectQuery, table: schema.Table) -> query.SelectQuery {
-  query.SelectQuery(..query, from: option.Some(table))
+pub fn from(
+  query: expression.SelectQuery,
+  table: schema.Table,
+) -> expression.SelectQuery {
+  expression.SelectQuery(..query, from: option.Some(expression.TableSource(table)))
 }
 
-// Appends an INNER JOIN clause to the SELECT query.
+pub fn from_derived(
+  query: expression.SelectQuery,
+  derived_query: expression.SelectQuery,
+  alias: String,
+) -> expression.SelectQuery {
+  expression.SelectQuery(
+    ..query,
+    from: option.Some(expression.DerivedSource(query: derived_query, alias: alias)),
+  )
+}
+
 pub fn inner_join(
-  query: query.SelectQuery,
+  query: expression.SelectQuery,
   table: schema.Table,
-  on: predicate.Predicate,
-) -> query.SelectQuery {
-  let join = join.Join(kind: join.InnerJoin, table: table, on: on)
-  query.SelectQuery(..query, joins: list.append(query.joins, [join]))
+  on: expression.Predicate,
+) -> expression.SelectQuery {
+  let next_join =
+    expression.Join(
+      kind: expression.InnerJoin,
+      source: expression.TableSource(table),
+      on: on,
+    )
+
+  expression.SelectQuery(..query, joins: list.append(query.joins, [next_join]))
 }
 
-// Appends a LEFT JOIN clause to the SELECT query.
+pub fn inner_join_derived(
+  query: expression.SelectQuery,
+  derived_query: expression.SelectQuery,
+  alias: String,
+  on: expression.Predicate,
+) -> expression.SelectQuery {
+  let next_join =
+    expression.Join(
+      kind: expression.InnerJoin,
+      source: expression.DerivedSource(query: derived_query, alias: alias),
+      on: on,
+    )
+
+  expression.SelectQuery(..query, joins: list.append(query.joins, [next_join]))
+}
+
 pub fn left_join(
-  query: query.SelectQuery,
+  query: expression.SelectQuery,
   table: schema.Table,
-  on: predicate.Predicate,
-) -> query.SelectQuery {
-  let join = join.Join(kind: join.LeftJoin, table: table, on: on)
-  query.SelectQuery(..query, joins: list.append(query.joins, [join]))
+  on: expression.Predicate,
+) -> expression.SelectQuery {
+  let next_join =
+    expression.Join(
+      kind: expression.LeftJoin,
+      source: expression.TableSource(table),
+      on: on,
+    )
+
+  expression.SelectQuery(..query, joins: list.append(query.joins, [next_join]))
 }
 
-// Sets the WHERE clause for the SELECT query.
+pub fn left_join_derived(
+  query: expression.SelectQuery,
+  derived_query: expression.SelectQuery,
+  alias: String,
+  on: expression.Predicate,
+) -> expression.SelectQuery {
+  let next_join =
+    expression.Join(
+      kind: expression.LeftJoin,
+      source: expression.DerivedSource(query: derived_query, alias: alias),
+      on: on,
+    )
+
+  expression.SelectQuery(..query, joins: list.append(query.joins, [next_join]))
+}
+
 pub fn where_(
-  query: query.SelectQuery,
-  predicate: predicate.Predicate,
-) -> query.SelectQuery {
-  query.SelectQuery(..query, where_: option.Some(predicate))
+  query: expression.SelectQuery,
+  predicate: expression.Predicate,
+) -> expression.SelectQuery {
+  expression.SelectQuery(..query, where_: option.Some(predicate))
 }
 
-// Appends a GROUP BY expression to the SELECT query.
+pub fn with_cte(
+  query: expression.SelectQuery,
+  name: String,
+  cte_query: expression.SelectQuery,
+) -> expression.SelectQuery {
+  let cte = expression.Cte(name: name, query: cte_query)
+  expression.SelectQuery(..query, ctes: list.append(query.ctes, [cte]))
+}
+
+pub fn union(
+  query: expression.SelectQuery,
+  other: expression.SelectQuery,
+) -> expression.SelectQuery {
+  let operation = expression.SetOperation(kind: expression.Union, query: other)
+  expression.SelectQuery(..query, unions: list.append(query.unions, [operation]))
+}
+
+pub fn union_all(
+  query: expression.SelectQuery,
+  other: expression.SelectQuery,
+) -> expression.SelectQuery {
+  let operation =
+    expression.SetOperation(kind: expression.UnionAll, query: other)
+  expression.SelectQuery(..query, unions: list.append(query.unions, [operation]))
+}
+
 pub fn group_by(
-  query: query.SelectQuery,
+  query: expression.SelectQuery,
   expr: expression.Expression,
-) -> query.SelectQuery {
-  query.SelectQuery(..query, group_by: list.append(query.group_by, [expr]))
+) -> expression.SelectQuery {
+  expression.SelectQuery(..query, group_by: list.append(query.group_by, [expr]))
 }
 
-// Sets the HAVING clause for the SELECT query.
 pub fn having(
-  query: query.SelectQuery,
-  predicate: predicate.Predicate,
-) -> query.SelectQuery {
-  query.SelectQuery(..query, having_: option.Some(predicate))
+  query: expression.SelectQuery,
+  predicate: expression.Predicate,
+) -> expression.SelectQuery {
+  expression.SelectQuery(..query, having_: option.Some(predicate))
 }
 
-// Creates an ascending ORDER BY item.
-pub fn asc(expr: expression.Expression) -> order.Order {
-  order.Order(expression: expr, direction: order.Asc)
+pub fn asc(expr: expression.Expression) -> expression.Order {
+  expression.Order(expression: expr, direction: expression.Asc)
 }
 
-// Creates a descending ORDER BY item.
-pub fn desc(expr: expression.Expression) -> order.Order {
-  order.Order(expression: expr, direction: order.Desc)
+pub fn desc(expr: expression.Expression) -> expression.Order {
+  expression.Order(expression: expr, direction: expression.Desc)
 }
 
-// Appends an ORDER BY item to the SELECT query.
 pub fn order_by(
-  query: query.SelectQuery,
-  item: order.Order,
-) -> query.SelectQuery {
-  query.SelectQuery(..query, order_by: list.append(query.order_by, [item]))
+  query: expression.SelectQuery,
+  item: expression.Order,
+) -> expression.SelectQuery {
+  expression.SelectQuery(
+    ..query,
+    order_by: list.append(query.order_by, [item]),
+  )
 }
 
-// Sets the LIMIT value for the SELECT query.
-pub fn limit(query: query.SelectQuery, value: Int) -> query.SelectQuery {
-  query.SelectQuery(..query, limit: option.Some(value))
+pub fn limit(query: expression.SelectQuery, value: Int) -> expression.SelectQuery {
+  expression.SelectQuery(..query, limit: option.Some(value))
 }
 
-// Sets the OFFSET value for the SELECT query.
-pub fn offset(query: query.SelectQuery, value: Int) -> query.SelectQuery {
-  query.SelectQuery(..query, offset: option.Some(value))
+pub fn offset(
+  query: expression.SelectQuery,
+  value: Int,
+) -> expression.SelectQuery {
+  expression.SelectQuery(..query, offset: option.Some(value))
 }
 
-// Marks the SELECT query as DISTINCT.
-pub fn distinct(query: query.SelectQuery) -> query.SelectQuery {
-  query.SelectQuery(..query, distinct: True)
+pub fn distinct(query: expression.SelectQuery) -> expression.SelectQuery {
+  expression.SelectQuery(..query, distinct: True)
 }

@@ -217,6 +217,91 @@ pub fn compile_select_expression_helpers_test() {
   assert params == [ast_expression.Text("unknown")]
 }
 
+pub fn compile_select_window_function_test() {
+  let users = table.as_(table.table("users"), "u")
+  let id = table.int(users, "id")
+  let active = table.bool(users, "active")
+
+  let row_number_expr =
+    expr.over(
+      expr.row_number(),
+      [expr.col(active)],
+      [select.asc(expr.col(id))],
+    )
+
+  let compiler.CompiledQuery(sql: sql, params: params) =
+    expect_compiled(
+      query.Select(
+        select.select([
+          expr.item(expr.col(id)),
+          expr.as_(row_number_expr, "row_number"),
+        ])
+        |> select.from(users),
+      ),
+    )
+
+  assert sql
+    == "SELECT \"u\".\"id\", ROW_NUMBER() OVER (PARTITION BY \"u\".\"active\" ORDER BY \"u\".\"id\" ASC) AS \"row_number\" FROM \"users\" AS \"u\""
+  assert params == []
+}
+
+pub fn compile_select_window_aggregate_test() {
+  let users = table.as_(table.table("users"), "u")
+  let id = table.int(users, "id")
+  let active = table.bool(users, "active")
+
+  let running_total_expr =
+    expr.over(
+      expr.sum(expr.col(id)),
+      [expr.col(active)],
+      [select.asc(expr.col(id))],
+    )
+
+  let compiler.CompiledQuery(sql: sql, params: params) =
+    expect_compiled(
+      query.Select(
+        select.select([
+          expr.item(expr.col(id)),
+          expr.as_(running_total_expr, "running_total"),
+        ])
+        |> select.from(users),
+      ),
+    )
+
+  assert sql
+    == "SELECT \"u\".\"id\", SUM(\"u\".\"id\") OVER (PARTITION BY \"u\".\"active\" ORDER BY \"u\".\"id\" ASC) AS \"running_total\" FROM \"users\" AS \"u\""
+  assert params == []
+}
+
+pub fn compile_select_expression_model_test() {
+  let name = users_name()
+  let id = users_id()
+
+  let compiler.CompiledQuery(sql: sql, params: params) =
+    expect_compiled(
+      query.Select(
+        select.select([
+          expr.as_(
+            expr.concat(expr.lower(expr.col(name)), expr.text("!")),
+            "excited_name",
+          ),
+          expr.as_(expr.add(expr.col(id), expr.int(1)), "next_id"),
+          expr.as_(expr.neg(expr.int(7)), "negated"),
+        ])
+        |> select.from(users_table()),
+      ),
+    )
+
+  assert sql
+    == "SELECT (LOWER(\"users\".\"name\") || $1) AS \"excited_name\", (\"users\".\"id\" + $2) AS \"next_id\", (-$3) AS \"negated\" FROM \"users\""
+  assert params
+    == [
+      ast_expression.Text("!"),
+      ast_expression.Int(1),
+      ast_expression.Int(7),
+    ]
+}
+
 pub fn compile_select_invalid_function_name_test() {
   let users = table.as_(table.table("users"), "u")
   let id = table.int(users, "id")
@@ -254,6 +339,224 @@ pub fn compile_select_group_by_having_test() {
   assert sql
     == "SELECT \"u\".\"active\", COUNT(\"u\".\"id\") AS \"user_count\" FROM \"users\" AS \"u\" GROUP BY \"u\".\"active\" HAVING (COUNT(\"u\".\"id\") > $1)"
   assert params == [ast_expression.Int(1)]
+}
+
+pub fn compile_select_subquery_in_select_test() {
+  let users = table.as_(table.table("users"), "u")
+  let posts = table.as_(table.table("posts"), "p")
+  let user_id = table.int(users, "id")
+  let post_id = table.int(posts, "id")
+  let post_user_id = table.int(posts, "user_id")
+
+  let post_count_query =
+    select.select([expr.item(expr.count(expr.col(post_id)))])
+    |> select.from(posts)
+    |> select.where_(predicate.eq(expr.col(post_user_id), expr.col(user_id)))
+
+  let compiler.CompiledQuery(sql: sql, params: params) =
+    expect_compiled(
+      query.Select(
+        select.select([
+          expr.item(expr.col(user_id)),
+          expr.as_(expr.subquery(post_count_query), "post_count"),
+        ])
+        |> select.from(users),
+      ),
+    )
+
+  assert sql
+    == "SELECT \"u\".\"id\", (SELECT COUNT(\"p\".\"id\") FROM \"posts\" AS \"p\" WHERE (\"p\".\"user_id\" = \"u\".\"id\")) AS \"post_count\" FROM \"users\" AS \"u\""
+  assert params == []
+}
+
+pub fn compile_select_subquery_in_where_test() {
+  let users = table.as_(table.table("users"), "u")
+  let posts = table.as_(table.table("posts"), "p")
+  let user_id = table.int(users, "id")
+  let post_user_id = table.int(posts, "user_id")
+  let post_published = table.bool(posts, "published")
+
+  let latest_published_author_query =
+    select.select([expr.item(expr.max(expr.col(post_user_id)))])
+    |> select.from(posts)
+    |> select.where_(predicate.eq(expr.col(post_published), expr.bool(True)))
+
+  let compiler.CompiledQuery(sql: sql, params: params) =
+    expect_compiled(
+      query.Select(
+        select.select([expr.item(expr.col(user_id))])
+        |> select.from(users)
+        |> select.where_(
+          predicate.eq(expr.col(user_id), expr.subquery(latest_published_author_query)),
+        ),
+      ),
+    )
+
+  assert sql
+    == "SELECT \"u\".\"id\" FROM \"users\" AS \"u\" WHERE (\"u\".\"id\" = (SELECT MAX(\"p\".\"user_id\") FROM \"posts\" AS \"p\" WHERE (\"p\".\"published\" = $1)))"
+  assert params == [ast_expression.Bool(True)]
+}
+
+pub fn compile_select_in_subquery_test() {
+  let users = table.as_(table.table("users"), "u")
+  let posts = table.as_(table.table("posts"), "p")
+  let user_id = table.int(users, "id")
+  let post_user_id = table.int(posts, "user_id")
+  let post_published = table.bool(posts, "published")
+
+  let published_authors_query =
+    select.select([expr.item(expr.col(post_user_id))])
+    |> select.from(posts)
+    |> select.where_(predicate.eq(expr.col(post_published), expr.bool(True)))
+
+  let compiler.CompiledQuery(sql: sql, params: params) =
+    expect_compiled(
+      query.Select(
+        select.select([expr.item(expr.col(user_id))])
+        |> select.from(users)
+        |> select.where_(
+          predicate.in_subquery(expr.col(user_id), published_authors_query),
+        ),
+      ),
+    )
+
+  assert sql
+    == "SELECT \"u\".\"id\" FROM \"users\" AS \"u\" WHERE (\"u\".\"id\" IN (SELECT \"p\".\"user_id\" FROM \"posts\" AS \"p\" WHERE (\"p\".\"published\" = $1)))"
+  assert params == [ast_expression.Bool(True)]
+}
+
+pub fn compile_select_from_derived_table_test() {
+  let posts = table.as_(table.table("posts"), "p")
+  let post_user_id = table.int(posts, "user_id")
+  let post_published = table.bool(posts, "published")
+  let published_posts = table.table("published_posts")
+  let derived_user_id = table.int(published_posts, "user_id")
+
+  let derived_query =
+    select.select([expr.item(expr.col(post_user_id))])
+    |> select.from(posts)
+    |> select.where_(predicate.eq(expr.col(post_published), expr.bool(True)))
+
+  let compiler.CompiledQuery(sql: sql, params: params) =
+    expect_compiled(
+      query.Select(
+        select.select([expr.item(expr.col(derived_user_id))])
+        |> select.from_derived(derived_query, "published_posts"),
+      ),
+    )
+
+  assert sql
+    == "SELECT \"published_posts\".\"user_id\" FROM (SELECT \"p\".\"user_id\" FROM \"posts\" AS \"p\" WHERE (\"p\".\"published\" = $1)) AS \"published_posts\""
+  assert params == [ast_expression.Bool(True)]
+}
+
+pub fn compile_select_join_derived_table_test() {
+  let users = table.as_(table.table("users"), "u")
+  let user_id = table.int(users, "id")
+  let posts = table.as_(table.table("posts"), "p")
+  let post_user_id = table.int(posts, "user_id")
+  let post_published = table.bool(posts, "published")
+  let published_posts = table.table("published_posts")
+  let derived_user_id = table.int(published_posts, "user_id")
+
+  let derived_query =
+    select.select([expr.item(expr.col(post_user_id))])
+    |> select.from(posts)
+    |> select.where_(predicate.eq(expr.col(post_published), expr.bool(True)))
+
+  let compiler.CompiledQuery(sql: sql, params: params) =
+    expect_compiled(
+      query.Select(
+        select.select([
+          expr.item(expr.col(user_id)),
+          expr.item(expr.col(derived_user_id)),
+        ])
+        |> select.from(users)
+        |> select.inner_join_derived(
+          derived_query,
+          "published_posts",
+          predicate.eq(expr.col(user_id), expr.col(derived_user_id)),
+        ),
+      ),
+    )
+
+  assert sql
+    == "SELECT \"u\".\"id\", \"published_posts\".\"user_id\" FROM \"users\" AS \"u\" INNER JOIN (SELECT \"p\".\"user_id\" FROM \"posts\" AS \"p\" WHERE (\"p\".\"published\" = $1)) AS \"published_posts\" ON (\"u\".\"id\" = \"published_posts\".\"user_id\")"
+  assert params == [ast_expression.Bool(True)]
+}
+
+pub fn compile_select_cte_test() {
+  let users = table.as_(table.table("users"), "u")
+  let user_id = table.int(users, "id")
+  let user_name = table.text(users, "name")
+  let user_active = table.bool(users, "active")
+  let active_users = table.table("active_users")
+  let active_user_id = table.int(active_users, "id")
+
+  let active_users_query =
+    select.select([
+      expr.item(expr.col(user_id)),
+      expr.item(expr.col(user_name)),
+    ])
+    |> select.from(users)
+    |> select.where_(predicate.eq(expr.col(user_active), expr.bool(True)))
+
+  let compiler.CompiledQuery(sql: sql, params: params) =
+    expect_compiled(
+      query.Select(
+        select.select([expr.item(expr.col(active_user_id))])
+        |> select.with_cte("active_users", active_users_query)
+        |> select.from(active_users)
+        |> select.where_(predicate.gt(expr.col(active_user_id), expr.int(10))),
+      ),
+    )
+
+  assert sql
+    == "WITH \"active_users\" AS (SELECT \"u\".\"id\", \"u\".\"name\" FROM \"users\" AS \"u\" WHERE (\"u\".\"active\" = $1)) SELECT \"active_users\".\"id\" FROM \"active_users\" WHERE (\"active_users\".\"id\" > $2)"
+  assert params == [ast_expression.Bool(True), ast_expression.Int(10)]
+}
+
+pub fn compile_select_union_test() {
+  let active_users_query =
+    select.select([expr.item(expr.col(users_id()))])
+    |> select.from(users_table())
+    |> select.where_(predicate.eq(expr.col(users_active()), expr.bool(True)))
+
+  let inactive_users_query =
+    select.select([expr.item(expr.col(users_id()))])
+    |> select.from(users_table())
+    |> select.where_(predicate.eq(expr.col(users_active()), expr.bool(False)))
+
+  let compiler.CompiledQuery(sql: sql, params: params) =
+    expect_compiled(
+      query.Select(active_users_query |> select.union(inactive_users_query)),
+    )
+
+  assert sql
+    == "SELECT \"users\".\"id\" FROM \"users\" WHERE (\"users\".\"active\" = $1) UNION SELECT \"users\".\"id\" FROM \"users\" WHERE (\"users\".\"active\" = $2)"
+  assert params == [ast_expression.Bool(True), ast_expression.Bool(False)]
+}
+
+pub fn compile_select_union_all_test() {
+  let first_page_query =
+    select.select([expr.item(expr.col(users_id()))])
+    |> select.from(users_table())
+    |> select.limit(10)
+
+  let second_page_query =
+    select.select([expr.item(expr.col(users_id()))])
+    |> select.from(users_table())
+    |> select.offset(10)
+    |> select.limit(10)
+
+  let compiler.CompiledQuery(sql: sql, params: params) =
+    expect_compiled(
+      query.Select(first_page_query |> select.union_all(second_page_query)),
+    )
+
+  assert sql
+    == "SELECT \"users\".\"id\" FROM \"users\" LIMIT 10 UNION ALL SELECT \"users\".\"id\" FROM \"users\" LIMIT 10 OFFSET 10"
+  assert params == []
 }
 
 pub fn compile_select_having_without_group_by_test() {

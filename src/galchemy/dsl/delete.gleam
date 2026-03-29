@@ -1,5 +1,4 @@
 import galchemy/ast/expression
-import galchemy/ast/predicate
 import galchemy/ast/query
 import galchemy/ast/schema
 import gleam/option
@@ -12,7 +11,7 @@ pub fn delete_from(table: schema.Table) -> query.DeleteQuery {
 // Sets the WHERE clause for the DELETE query.
 pub fn where_(
   query: query.DeleteQuery,
-  predicate: predicate.Predicate,
+  predicate: expression.Predicate,
 ) -> query.DeleteQuery {
   query.DeleteQuery(..query, where_: option.Some(predicate))
 }

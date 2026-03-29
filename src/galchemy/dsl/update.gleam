@@ -1,5 +1,4 @@
 import galchemy/ast/expression
-import galchemy/ast/predicate
 import galchemy/ast/query
 import galchemy/ast/schema
 import gleam/list
@@ -30,7 +29,7 @@ pub fn set(
 // Sets the WHERE clause for the UPDATE query.
 pub fn where_(
   query: query.UpdateQuery,
-  predicate: predicate.Predicate,
+  predicate: expression.Predicate,
 ) -> query.UpdateQuery {
   query.UpdateQuery(..query, where_: option.Some(predicate))
 }

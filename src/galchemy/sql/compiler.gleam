@@ -1,7 +1,4 @@
 import galchemy/ast/expression
-import galchemy/ast/join
-import galchemy/ast/order
-import galchemy/ast/predicate
 import galchemy/ast/query
 import galchemy/ast/schema
 import gleam/int
@@ -9,12 +6,10 @@ import gleam/list
 import gleam/option
 import gleam/string
 
-/// Represents a compiled SQL statement and its positional parameters.
 pub type CompiledQuery {
   CompiledQuery(sql: String, params: List(expression.SqlValue))
 }
 
-/// Represents all supported compilation errors.
 pub type CompileError {
   MissingFrom
   EmptyInList
@@ -27,12 +22,10 @@ pub type CompileError {
   InvalidOffset(Int)
 }
 
-/// Carries mutable compilation state in an immutable way.
 type CompileState {
   CompileState(next_param: Int, params: List(expression.SqlValue))
 }
 
-/// Provides `use <-` chaining for `Result` values.
 fn result_try(result: Result(a, e), next: fn(a) -> Result(b, e)) -> Result(b, e) {
   case result {
     Ok(value) -> next(value)
@@ -40,17 +33,14 @@ fn result_try(result: Result(a, e), next: fn(a) -> Result(b, e)) -> Result(b, e)
   }
 }
 
-/// Creates a fresh compilation state.
 fn new_state() -> CompileState {
   CompileState(next_param: 1, params: [])
 }
 
-/// Builds the final compiled query from SQL text and collected parameters.
 fn finalize(sql: String, state: CompileState) -> CompiledQuery {
   CompiledQuery(sql: sql, params: reverse(state.params))
 }
 
-/// Compiles any top-level query variant into SQL.
 pub fn compile(q: query.Query) -> Result(CompiledQuery, CompileError) {
   case q {
     query.Select(s) -> compile_select(s)
@@ -60,17 +50,27 @@ pub fn compile(q: query.Query) -> Result(CompiledQuery, CompileError) {
   }
 }
 
-/// Compiles a SELECT query into SQL with positional parameters.
 pub fn compile_select(
-  q: query.SelectQuery,
+  q: expression.SelectQuery,
 ) -> Result(CompiledQuery, CompileError) {
-  let query.SelectQuery(
+  let state0 = new_state()
+  use #(sql, state1) <- result_try(compile_select_query(q, state0))
+  Ok(finalize(sql, state1))
+}
+
+fn compile_select_query(
+  q: expression.SelectQuery,
+  state: CompileState,
+) -> Result(#(String, CompileState), CompileError) {
+  let expression.SelectQuery(
+    ctes: ctes,
     items: items,
     from: from,
     joins: joins,
     where_: where_,
     group_by: group_by,
     having_: having_,
+    unions: unions,
     order_by: order_by,
     limit: limit,
     offset: offset,
@@ -79,33 +79,34 @@ pub fn compile_select(
 
   case from {
     option.None -> Error(MissingFrom)
-    option.Some(table) -> {
-      let state0 = new_state()
-
-      use #(items_sql, state1) <- result_try(compile_select_items(items, state0))
-      use #(joins_sql, state2) <- result_try(compile_joins(joins, state1))
-      use #(where_sql, state3) <- result_try(compile_where(where_, state2))
-      use #(group_by_sql, state4) <- result_try(compile_group_by(group_by, state3))
-      use #(having_sql, state5) <- result_try(compile_having(
+    option.Some(source) -> {
+      use #(ctes_sql, state1) <- result_try(compile_ctes(ctes, state))
+      use #(items_sql, state2) <- result_try(compile_select_items(items, state1))
+      use #(from_sql, state3) <- result_try(compile_source(source, state2))
+      use #(joins_sql, state4) <- result_try(compile_joins(joins, state3))
+      use #(where_sql, state5) <- result_try(compile_where(where_, state4))
+      use #(group_by_sql, state6) <- result_try(compile_group_by(group_by, state5))
+      use #(having_sql, state7) <- result_try(compile_having(
         group_by,
         having_,
-        state4,
+        state6,
       ))
-      use #(order_sql, state6) <- result_try(compile_order_by(order_by, state5))
+      use #(order_sql, state8) <- result_try(compile_order_by(order_by, state7))
       use limit_sql <- result_try(compile_limit(limit))
       use offset_sql <- result_try(compile_offset(offset))
+      use #(unions_sql, state9) <- result_try(compile_set_operations(unions, state8))
 
       let distinct_sql = case distinct {
         True -> "DISTINCT "
         False -> ""
       }
 
-      let sql =
+      let base_sql =
         "SELECT "
         <> distinct_sql
         <> items_sql
         <> " FROM "
-        <> compile_table_ref(table)
+        <> from_sql
         <> joins_sql
         <> where_sql
         <> group_by_sql
@@ -114,12 +115,11 @@ pub fn compile_select(
         <> limit_sql
         <> offset_sql
 
-      Ok(finalize(sql, state6))
+      Ok(#(ctes_sql <> base_sql <> unions_sql, state9))
     }
   }
 }
 
-/// Compiles an INSERT query into SQL with positional parameters.
 pub fn compile_insert(
   q: query.InsertQuery,
 ) -> Result(CompiledQuery, CompileError) {
@@ -147,7 +147,6 @@ pub fn compile_insert(
   Ok(finalize(sql, state2))
 }
 
-/// Compiles an UPDATE query into SQL with positional parameters.
 pub fn compile_update(
   q: query.UpdateQuery,
 ) -> Result(CompiledQuery, CompileError) {
@@ -177,7 +176,6 @@ pub fn compile_update(
   Ok(finalize(sql, state3))
 }
 
-/// Compiles a DELETE query into SQL with positional parameters.
 pub fn compile_delete(
   q: query.DeleteQuery,
 ) -> Result(CompiledQuery, CompileError) {
@@ -196,7 +194,73 @@ pub fn compile_delete(
   Ok(finalize(sql, state2))
 }
 
-/// Compiles a list of select items, defaulting to `*` when the list is empty.
+fn compile_ctes(
+  ctes: List(expression.Cte),
+  state: CompileState,
+) -> Result(#(String, CompileState), CompileError) {
+  case ctes {
+    [] -> Ok(#("", state))
+    _ -> {
+      use #(ctes_sql, next_state) <- result_try(compile_ctes_loop(ctes, [], state))
+      Ok(#("WITH " <> ctes_sql <> " ", next_state))
+    }
+  }
+}
+
+fn compile_ctes_loop(
+  ctes: List(expression.Cte),
+  acc: List(String),
+  state: CompileState,
+) -> Result(#(String, CompileState), CompileError) {
+  case ctes {
+    [] -> Ok(#(join_strings(reverse(acc), ", "), state))
+    [cte, ..rest] -> {
+      let expression.Cte(name: name, query: cte_query) = cte
+      use #(cte_sql, next_state) <- result_try(compile_select_query(
+        cte_query,
+        state,
+      ))
+      let next_item = compile_identifier(name) <> " AS (" <> cte_sql <> ")"
+      compile_ctes_loop(rest, [next_item, ..acc], next_state)
+    }
+  }
+}
+
+fn compile_set_operations(
+  operations: List(expression.SetOperation),
+  state: CompileState,
+) -> Result(#(String, CompileState), CompileError) {
+  compile_set_operations_loop(operations, [], state)
+}
+
+fn compile_set_operations_loop(
+  operations: List(expression.SetOperation),
+  acc: List(String),
+  state: CompileState,
+) -> Result(#(String, CompileState), CompileError) {
+  case operations {
+    [] -> Ok(#(concat_strings(reverse(acc)), state))
+    [operation, ..rest] -> {
+      let expression.SetOperation(kind: kind, query: union_query) = operation
+      let operator_sql = case kind {
+        expression.Union -> " UNION "
+        expression.UnionAll -> " UNION ALL "
+      }
+
+      use #(union_sql, next_state) <- result_try(compile_select_query(
+        union_query,
+        state,
+      ))
+
+      compile_set_operations_loop(
+        rest,
+        [operator_sql <> union_sql, ..acc],
+        next_state,
+      )
+    }
+  }
+}
+
 fn compile_select_items(
   items: List(expression.SelectItem),
   state: CompileState,
@@ -207,7 +271,6 @@ fn compile_select_items(
   }
 }
 
-/// Recursively compiles select items and joins them with commas.
 fn compile_select_items_loop(
   items: List(expression.SelectItem),
   acc: List(String),
@@ -222,7 +285,6 @@ fn compile_select_items_loop(
   }
 }
 
-/// Compiles a single select item and optional alias.
 fn compile_select_item(
   item: expression.SelectItem,
   state: CompileState,
@@ -280,7 +342,12 @@ fn compile_insert_rows_loop(
             row,
             state,
           ))
-          compile_insert_rows_loop(rest, first_row, list.append(acc, [row_sql]), next_state)
+          compile_insert_rows_loop(
+            rest,
+            first_row,
+            list.append(acc, [row_sql]),
+            next_state,
+          )
         }
       }
     }
@@ -331,7 +398,6 @@ fn same_insert_shape(
   }
 }
 
-/// Compiles a list of update assignments into `col = expr` fragments.
 fn compile_assignments(
   assignments: List(#(schema.ColumnMeta, expression.Expression)),
   state: CompileState,
@@ -342,7 +408,6 @@ fn compile_assignments(
   }
 }
 
-/// Recursively compiles update assignments.
 fn compile_assignments_loop(
   assignments: List(#(schema.ColumnMeta, expression.Expression)),
   acc: List(String),
@@ -358,7 +423,6 @@ fn compile_assignments_loop(
   }
 }
 
-/// Compiles an optional RETURNING clause.
 fn compile_returning(
   returning: List(expression.SelectItem),
   state: CompileState,
@@ -376,7 +440,6 @@ fn compile_returning(
   }
 }
 
-/// Compiles an expression and updates parameter state if needed.
 fn compile_expression(
   expr: expression.Expression,
   state: CompileState,
@@ -393,6 +456,36 @@ fn compile_expression(
       ))
       Ok(#(function_name <> "(" <> arguments_sql <> ")", next_state))
     }
+    expression.UnaryOpExpr(operator: operator, operand: operand) -> {
+      use #(operand_sql, next_state) <- result_try(compile_expression(
+        operand,
+        state,
+      ))
+      Ok(#("(" <> unary_operator_to_sql(operator) <> operand_sql <> ")", next_state))
+    }
+    expression.BinaryOpExpr(lhs: lhs, operator: operator, rhs: rhs) -> {
+      use #(lhs_sql, state1) <- result_try(compile_expression(lhs, state))
+      use #(rhs_sql, state2) <- result_try(compile_expression(rhs, state1))
+      Ok(#(
+        "(" <> lhs_sql <> " " <> binary_operator_to_sql(operator) <> " " <> rhs_sql <> ")",
+        state2,
+      ))
+    }
+    expression.WindowExpr(function: function, window: window) -> {
+      use #(function_sql, state1) <- result_try(compile_expression(function, state))
+      use #(window_sql, state2) <- result_try(compile_window_definition(
+        window,
+        state1,
+      ))
+      Ok(#(function_sql <> " OVER (" <> window_sql <> ")", state2))
+    }
+    expression.SubqueryExpr(select_query) -> {
+      use #(subquery_sql, next_state) <- result_try(compile_select_query(
+        select_query,
+        state,
+      ))
+      Ok(#("(" <> subquery_sql <> ")", next_state))
+    }
     expression.ValueExpr(value) -> {
       let #(placeholder, next_state) = push_param(value, state)
       Ok(#(placeholder, next_state))
@@ -400,7 +493,61 @@ fn compile_expression(
   }
 }
 
-/// Allocates the next positional placeholder and stores the parameter.
+fn compile_window_definition(
+  window: expression.WindowDefinition,
+  state: CompileState,
+) -> Result(#(String, CompileState), CompileError) {
+  let expression.WindowDefinition(
+    partition_by: partition_by,
+    order_by: order_by,
+  ) = window
+
+  use #(partition_sql, state1) <- result_try(compile_window_partition(
+    partition_by,
+    state,
+  ))
+  use #(order_sql, state2) <- result_try(compile_window_order(order_by, state1))
+
+  case partition_sql, order_sql {
+    "", "" -> Ok(#("", state2))
+    "", _ -> Ok(#(order_sql, state2))
+    _, "" -> Ok(#(partition_sql, state2))
+    _, _ -> Ok(#(partition_sql <> " " <> order_sql, state2))
+  }
+}
+
+fn compile_window_partition(
+  partition_by: List(expression.Expression),
+  state: CompileState,
+) -> Result(#(String, CompileState), CompileError) {
+  case partition_by {
+    [] -> Ok(#("", state))
+    _ -> {
+      use #(partition_sql, next_state) <- result_try(compile_expression_list(
+        partition_by,
+        state,
+      ))
+      Ok(#("PARTITION BY " <> partition_sql, next_state))
+    }
+  }
+}
+
+fn compile_window_order(
+  order_by: List(expression.Order),
+  state: CompileState,
+) -> Result(#(String, CompileState), CompileError) {
+  case order_by {
+    [] -> Ok(#("", state))
+    _ -> {
+      use #(order_sql, next_state) <- result_try(compile_order_items(
+        order_by,
+        state,
+      ))
+      Ok(#("ORDER BY " <> order_sql, next_state))
+    }
+  }
+}
+
 fn push_param(
   value: expression.SqlValue,
   state: CompileState,
@@ -414,17 +561,31 @@ fn push_param(
   #(placeholder, next_state)
 }
 
-/// Compiles all JOIN clauses for a SELECT query.
+fn compile_source(
+  source: expression.Source,
+  state: CompileState,
+) -> Result(#(String, CompileState), CompileError) {
+  case source {
+    expression.TableSource(table) -> Ok(#(compile_table_ref(table), state))
+    expression.DerivedSource(query: derived_query, alias: alias) -> {
+      use #(query_sql, next_state) <- result_try(compile_select_query(
+        derived_query,
+        state,
+      ))
+      Ok(#("(" <> query_sql <> ") AS " <> compile_identifier(alias), next_state))
+    }
+  }
+}
+
 fn compile_joins(
-  joins: List(join.Join),
+  joins: List(expression.Join),
   state: CompileState,
 ) -> Result(#(String, CompileState), CompileError) {
   compile_joins_loop(joins, [], state)
 }
 
-/// Recursively compiles JOIN clauses.
 fn compile_joins_loop(
-  joins: List(join.Join),
+  joins: List(expression.Join),
   acc: List(String),
   state: CompileState,
 ) -> Result(#(String, CompileState), CompileError) {
@@ -437,24 +598,23 @@ fn compile_joins_loop(
   }
 }
 
-/// Compiles a single JOIN clause.
 fn compile_join(
-  j: join.Join,
+  j: expression.Join,
   state: CompileState,
 ) -> Result(#(String, CompileState), CompileError) {
-  let join.Join(kind: kind, table: table, on: on) = j
+  let expression.Join(kind: kind, source: source, on: on) = j
   let kind_sql = case kind {
-    join.InnerJoin -> " INNER JOIN "
-    join.LeftJoin -> " LEFT JOIN "
+    expression.InnerJoin -> " INNER JOIN "
+    expression.LeftJoin -> " LEFT JOIN "
   }
 
-  use #(on_sql, state1) <- result_try(compile_predicate(on, state))
-  Ok(#(kind_sql <> compile_table_ref(table) <> " ON " <> on_sql, state1))
+  use #(source_sql, state1) <- result_try(compile_source(source, state))
+  use #(on_sql, state2) <- result_try(compile_predicate(on, state1))
+  Ok(#(kind_sql <> source_sql <> " ON " <> on_sql, state2))
 }
 
-/// Compiles an optional WHERE clause.
 fn compile_where(
-  where_: option.Option(predicate.Predicate),
+  where_: option.Option(expression.Predicate),
   state: CompileState,
 ) -> Result(#(String, CompileState), CompileError) {
   case where_ {
@@ -466,7 +626,6 @@ fn compile_where(
   }
 }
 
-/// Compiles the GROUP BY clause.
 fn compile_group_by(
   group_by: List(expression.Expression),
   state: CompileState,
@@ -483,10 +642,9 @@ fn compile_group_by(
   }
 }
 
-/// Compiles the HAVING clause and validates that it is used together with GROUP BY.
 fn compile_having(
   group_by: List(expression.Expression),
-  having_: option.Option(predicate.Predicate),
+  having_: option.Option(expression.Predicate),
   state: CompileState,
 ) -> Result(#(String, CompileState), CompileError) {
   case having_ {
@@ -506,9 +664,8 @@ fn compile_having(
   }
 }
 
-/// Compiles the ORDER BY clause.
 fn compile_order_by(
-  order_by: List(order.Order),
+  order_by: List(expression.Order),
   state: CompileState,
 ) -> Result(#(String, CompileState), CompileError) {
   case order_by {
@@ -523,17 +680,15 @@ fn compile_order_by(
   }
 }
 
-/// Compiles all ORDER BY items.
 fn compile_order_items(
-  items: List(order.Order),
+  items: List(expression.Order),
   state: CompileState,
 ) -> Result(#(String, CompileState), CompileError) {
   compile_order_items_loop(items, [], state)
 }
 
-/// Recursively compiles ORDER BY items.
 fn compile_order_items_loop(
-  items: List(order.Order),
+  items: List(expression.Order),
   acc: List(String),
   state: CompileState,
 ) -> Result(#(String, CompileState), CompileError) {
@@ -546,27 +701,25 @@ fn compile_order_items_loop(
   }
 }
 
-/// Compiles a single ORDER BY item.
 fn compile_order_item(
-  item: order.Order,
+  item: expression.Order,
   state: CompileState,
 ) -> Result(#(String, CompileState), CompileError) {
-  let order.Order(expression: expr, direction: direction) = item
+  let expression.Order(expression: expr, direction: direction) = item
   use #(expr_sql, state1) <- result_try(compile_expression(expr, state))
   let dir_sql = case direction {
-    order.Asc -> "ASC"
-    order.Desc -> "DESC"
+    expression.Asc -> "ASC"
+    expression.Desc -> "DESC"
   }
   Ok(#(expr_sql <> " " <> dir_sql, state1))
 }
 
-/// Compiles a predicate tree into SQL.
 fn compile_predicate(
-  pred: predicate.Predicate,
+  pred: expression.Predicate,
   state: CompileState,
 ) -> Result(#(String, CompileState), CompileError) {
   case pred {
-    predicate.Comparison(lhs: lhs, op: op, rhs: rhs) -> {
+    expression.Comparison(lhs: lhs, op: op, rhs: rhs) -> {
       use #(lhs_sql, state1) <- result_try(compile_expression(lhs, state))
       use #(rhs_sql, state2) <- result_try(compile_expression(rhs, state1))
       Ok(#(
@@ -575,24 +728,24 @@ fn compile_predicate(
       ))
     }
 
-    predicate.And(left: left, right: right) -> {
+    expression.And(left: left, right: right) -> {
       use #(left_sql, state1) <- result_try(compile_predicate(left, state))
       use #(right_sql, state2) <- result_try(compile_predicate(right, state1))
       Ok(#("(" <> left_sql <> " AND " <> right_sql <> ")", state2))
     }
 
-    predicate.Or(left: left, right: right) -> {
+    expression.Or(left: left, right: right) -> {
       use #(left_sql, state1) <- result_try(compile_predicate(left, state))
       use #(right_sql, state2) <- result_try(compile_predicate(right, state1))
       Ok(#("(" <> left_sql <> " OR " <> right_sql <> ")", state2))
     }
 
-    predicate.Not(predicate: inner) -> {
+    expression.Not(predicate: inner) -> {
       use #(inner_sql, state1) <- result_try(compile_predicate(inner, state))
       Ok(#("(NOT " <> inner_sql <> ")", state1))
     }
 
-    predicate.InList(lhs: lhs, rhs: rhs) -> {
+    expression.InList(lhs: lhs, rhs: rhs) -> {
       case rhs {
         [] -> Error(EmptyInList)
         _ -> {
@@ -606,23 +759,29 @@ fn compile_predicate(
       }
     }
 
-    predicate.IsNull(expression: expr) -> {
+    expression.InSubquery(lhs: lhs, rhs: rhs) -> {
+      use #(lhs_sql, state1) <- result_try(compile_expression(lhs, state))
+      use #(rhs_sql, state2) <- result_try(compile_select_query(rhs, state1))
+      Ok(#("(" <> lhs_sql <> " IN (" <> rhs_sql <> "))", state2))
+    }
+
+    expression.IsNull(expression: expr) -> {
       use #(expr_sql, state1) <- result_try(compile_expression(expr, state))
       Ok(#("(" <> expr_sql <> " IS NULL)", state1))
     }
 
-    predicate.IsNotNull(expression: expr) -> {
+    expression.IsNotNull(expression: expr) -> {
       use #(expr_sql, state1) <- result_try(compile_expression(expr, state))
       Ok(#("(" <> expr_sql <> " IS NOT NULL)", state1))
     }
 
-    predicate.Like(lhs: lhs, rhs: rhs) -> {
+    expression.Like(lhs: lhs, rhs: rhs) -> {
       use #(lhs_sql, state1) <- result_try(compile_expression(lhs, state))
       use #(rhs_sql, state2) <- result_try(compile_expression(rhs, state1))
       Ok(#("(" <> lhs_sql <> " LIKE " <> rhs_sql <> ")", state2))
     }
 
-    predicate.Ilike(lhs: lhs, rhs: rhs) -> {
+    expression.Ilike(lhs: lhs, rhs: rhs) -> {
       use #(lhs_sql, state1) <- result_try(compile_expression(lhs, state))
       use #(rhs_sql, state2) <- result_try(compile_expression(rhs, state1))
       Ok(#("(" <> lhs_sql <> " ILIKE " <> rhs_sql <> ")", state2))
@@ -630,7 +789,6 @@ fn compile_predicate(
   }
 }
 
-/// Compiles a list of expressions separated by commas.
 fn compile_expression_list(
   exprs: List(expression.Expression),
   state: CompileState,
@@ -638,7 +796,6 @@ fn compile_expression_list(
   compile_expression_list_loop(exprs, [], state)
 }
 
-/// Recursively compiles expression lists.
 fn compile_expression_list_loop(
   exprs: List(expression.Expression),
   acc: List(String),
@@ -653,7 +810,6 @@ fn compile_expression_list_loop(
   }
 }
 
-/// Compiles LIMIT clause and validates non-negative values.
 fn compile_limit(limit: option.Option(Int)) -> Result(String, CompileError) {
   case limit {
     option.None -> Ok("")
@@ -666,7 +822,6 @@ fn compile_limit(limit: option.Option(Int)) -> Result(String, CompileError) {
   }
 }
 
-/// Compiles OFFSET clause and validates non-negative values.
 fn compile_offset(offset: option.Option(Int)) -> Result(String, CompileError) {
   case offset {
     option.None -> Ok("")
@@ -679,7 +834,6 @@ fn compile_offset(offset: option.Option(Int)) -> Result(String, CompileError) {
   }
 }
 
-/// Compiles table reference with optional alias.
 fn compile_table_ref(table: schema.Table) -> String {
   let schema.Table(schema: schema_name, name: name, alias: alias) = table
   let qualified_name = case schema_name {
@@ -694,7 +848,6 @@ fn compile_table_ref(table: schema.Table) -> String {
   }
 }
 
-/// Compiles fully-qualified column reference using table name or alias.
 fn compile_column_ref(column: schema.ColumnMeta) -> String {
   let schema.ColumnMeta(table: table, name: column_name) = column
   let schema.Table(schema: schema_name, name: table_name, alias: alias) = table
@@ -711,17 +864,11 @@ fn compile_column_ref(column: schema.ColumnMeta) -> String {
   qualifier <> "." <> compile_identifier(column_name)
 }
 
-/// Compiles column name for INSERT/UPDATE targets.
 fn compile_column_name(column: schema.ColumnMeta) -> String {
   let schema.ColumnMeta(table: _, name: name) = column
   compile_identifier(name)
 }
 
-/// Compiles an SQL identifier.
-///
-/// Policy for `1.5`:
-/// - identifiers are always quoted;
-/// - embedded double quotes are escaped by doubling them.
 fn compile_identifier(identifier: String) -> String {
   "\""
   <> string.replace(in: identifier, each: "\"", with: "\"\"")
@@ -735,19 +882,33 @@ fn compile_function_name(name: String) -> Result(String, CompileError) {
   }
 }
 
-/// Maps comparison operators to SQL text.
-fn op_to_sql(op: predicate.ComparisonOp) -> String {
+fn op_to_sql(op: expression.ComparisonOp) -> String {
   case op {
-    predicate.Eq -> "="
-    predicate.Neq -> "!="
-    predicate.Gt -> ">"
-    predicate.Gte -> ">="
-    predicate.Lt -> "<"
-    predicate.Lte -> "<="
+    expression.Eq -> "="
+    expression.Neq -> "!="
+    expression.Gt -> ">"
+    expression.Gte -> ">="
+    expression.Lt -> "<"
+    expression.Lte -> "<="
   }
 }
 
-/// Joins strings with a separator.
+fn unary_operator_to_sql(operator: expression.UnaryOperator) -> String {
+  case operator {
+    expression.Negate -> "-"
+  }
+}
+
+fn binary_operator_to_sql(operator: expression.BinaryOperator) -> String {
+  case operator {
+    expression.Add -> "+"
+    expression.Subtract -> "-"
+    expression.Multiply -> "*"
+    expression.Divide -> "/"
+    expression.Concat -> "||"
+  }
+}
+
 fn join_strings(parts: List(String), sep: String) -> String {
   case parts {
     [] -> ""
@@ -755,7 +916,6 @@ fn join_strings(parts: List(String), sep: String) -> String {
   }
 }
 
-/// Recursively joins strings with a separator.
 fn join_strings_loop(parts: List(String), acc: String, sep: String) -> String {
   case parts {
     [] -> acc
@@ -763,7 +923,6 @@ fn join_strings_loop(parts: List(String), acc: String, sep: String) -> String {
   }
 }
 
-/// Concatenates strings without any separator.
 fn concat_strings(parts: List(String)) -> String {
   case parts {
     [] -> ""
@@ -771,12 +930,10 @@ fn concat_strings(parts: List(String)) -> String {
   }
 }
 
-/// Reverses a list.
 fn reverse(items: List(a)) -> List(a) {
   reverse_loop(items, [])
 }
 
-/// Tail-recursive reverse helper.
 fn reverse_loop(items: List(a), acc: List(a)) -> List(a) {
   case items {
     [] -> acc
