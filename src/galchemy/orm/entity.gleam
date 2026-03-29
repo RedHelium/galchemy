@@ -104,6 +104,10 @@ pub fn mark_deleted(entity: Entity) -> Entity {
   Entity(..entity, status: Deleted)
 }
 
+pub fn mark_clean(entity: Entity) -> Entity {
+  Entity(..entity, status: Clean)
+}
+
 pub fn mark_relation_loaded(
   entity: Entity,
   relation_name: String,

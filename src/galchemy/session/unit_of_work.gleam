@@ -107,6 +107,20 @@ pub fn register_deleted(
   )
 }
 
+pub fn discard_entity_changes(
+  session: Session,
+  table: relation.TableRef,
+  identity: Identity,
+  values: List(FieldValue),
+) -> Session {
+  Session(
+    ..session,
+    inserts: discard_inserts(session.inserts, table, values),
+    updates: discard_updates(session.updates, table, identity),
+    deletes: discard_deletes(session.deletes, table, identity),
+  )
+}
+
 pub fn flush_plan(session: Session) -> Result(FlushPlan, SessionError) {
   let insert_order = insert_table_order(session.snapshot)
   let delete_order = list.reverse(insert_order)
@@ -528,6 +542,54 @@ fn contains_delete(deletes: List(PendingDelete), target: PendingDelete) -> Bool 
       case delete_change == target {
         True -> True
         False -> contains_delete(rest, target)
+      }
+    }
+  }
+}
+
+fn discard_inserts(
+  inserts: List(PendingInsert),
+  table: relation.TableRef,
+  values: List(FieldValue),
+) -> List(PendingInsert) {
+  case inserts {
+    [] -> []
+    [insert_change, ..rest] -> {
+      case insert_change.table == table && insert_change.values == values {
+        True -> discard_inserts(rest, table, values)
+        False -> [insert_change, ..discard_inserts(rest, table, values)]
+      }
+    }
+  }
+}
+
+fn discard_updates(
+  updates: List(PendingUpdate),
+  table: relation.TableRef,
+  identity: Identity,
+) -> List(PendingUpdate) {
+  case updates {
+    [] -> []
+    [update_change, ..rest] -> {
+      case update_change.table == table && update_change.identity == identity {
+        True -> discard_updates(rest, table, identity)
+        False -> [update_change, ..discard_updates(rest, table, identity)]
+      }
+    }
+  }
+}
+
+fn discard_deletes(
+  deletes: List(PendingDelete),
+  table: relation.TableRef,
+  identity: Identity,
+) -> List(PendingDelete) {
+  case deletes {
+    [] -> []
+    [delete_change, ..rest] -> {
+      case delete_change.table == table && delete_change.identity == identity {
+        True -> discard_deletes(rest, table, identity)
+        False -> [delete_change, ..discard_deletes(rest, table, identity)]
       }
     }
   }
