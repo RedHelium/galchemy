@@ -50,6 +50,8 @@ The public API is intentionally namespaced by module:
 - `galchemy/dsl/insert`: `insert` query builder;
 - `galchemy/dsl/update`: `update` query builder;
 - `galchemy/dsl/delete`: `delete` query builder;
+- `galchemy/schema/model`: schema snapshot types for future diffing and generation tooling;
+- `galchemy/schema/introspection/postgres`: PostgreSQL schema introspection into schema snapshots;
 - `galchemy/sql/compiler`: AST to `SQL + params` compilation, including `compile_with` and compiler config hooks;
 - `galchemy/sql/postgres`: PostgreSQL runtime adapter on top of `pog`;
 - `galchemy`: top-level facade for generic compiler entry points only.
