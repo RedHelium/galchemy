@@ -5,10 +5,10 @@ import galchemy/orm/entity
 import galchemy/orm/metadata
 import galchemy/schema/model
 import galchemy/schema/relation
-import galchemy/sql/compiler
 import galchemy/session/execution
 import galchemy/session/runtime
 import galchemy/session/unit_of_work
+import galchemy/sql/compiler
 import gleam/list
 import gleam/option
 import gleam/string
@@ -22,13 +22,10 @@ pub fn track_adds_clean_entity_test() {
   let snapshot = blog_snapshot()
   let users_metadata = expect_metadata(snapshot, "public", "users")
   let clean_user =
-    entity.materialize(
-      users_metadata,
-      [
-        unit_of_work.field("id", ast_expression.Int(1)),
-        unit_of_work.field("name", ast_expression.Text("Ann")),
-      ],
-    )
+    entity.materialize(users_metadata, [
+      unit_of_work.field("id", ast_expression.Int(1)),
+      unit_of_work.field("name", ast_expression.Text("Ann")),
+    ])
     |> expect_entity
 
   let session =
@@ -47,13 +44,10 @@ pub fn attach_adds_clean_entity_test() {
   let snapshot = blog_snapshot()
   let users_metadata = expect_metadata(snapshot, "public", "users")
   let clean_user =
-    entity.materialize(
-      users_metadata,
-      [
-        unit_of_work.field("id", ast_expression.Int(1)),
-        unit_of_work.field("name", ast_expression.Text("Ann")),
-      ],
-    )
+    entity.materialize(users_metadata, [
+      unit_of_work.field("id", ast_expression.Int(1)),
+      unit_of_work.field("name", ast_expression.Text("Ann")),
+    ])
     |> expect_entity
 
   let session =
@@ -68,13 +62,10 @@ pub fn rollback_restores_persisted_baseline_test() {
   let snapshot = blog_snapshot()
   let users_metadata = expect_metadata(snapshot, "public", "users")
   let clean_user =
-    entity.materialize(
-      users_metadata,
-      [
-        unit_of_work.field("id", ast_expression.Int(1)),
-        unit_of_work.field("name", ast_expression.Text("Ann")),
-      ],
-    )
+    entity.materialize(users_metadata, [
+      unit_of_work.field("id", ast_expression.Int(1)),
+      unit_of_work.field("name", ast_expression.Text("Ann")),
+    ])
     |> expect_entity
   let dirty_user =
     clean_user
@@ -90,7 +81,11 @@ pub fn rollback_restores_persisted_baseline_test() {
   let rolled_back = runtime.rollback(staged_session)
   let identity = expect_identity(clean_user)
 
-  assert runtime.get(rolled_back, relation.table_ref("public", "users"), identity)
+  assert runtime.get(
+      rolled_back,
+      relation.table_ref("public", "users"),
+      identity,
+    )
     == option.Some(clean_user)
   assert tracked_pending_queries(rolled_back) == []
 }
@@ -99,13 +94,10 @@ pub fn rollback_drops_new_entities_test() {
   let snapshot = blog_snapshot()
   let users_metadata = expect_metadata(snapshot, "public", "users")
   let new_user =
-    entity.new_(
-      users_metadata,
-      [
-        unit_of_work.field("id", ast_expression.Int(1)),
-        unit_of_work.field("name", ast_expression.Text("Ann")),
-      ],
-    )
+    entity.new_(users_metadata, [
+      unit_of_work.field("id", ast_expression.Int(1)),
+      unit_of_work.field("name", ast_expression.Text("Ann")),
+    ])
     |> expect_entity
 
   let staged_session =
@@ -121,13 +113,10 @@ pub fn flush_normalizes_statuses_test() {
   let snapshot = blog_snapshot()
   let users_metadata = expect_metadata(snapshot, "public", "users")
   let clean_user =
-    entity.materialize(
-      users_metadata,
-      [
-        unit_of_work.field("id", ast_expression.Int(1)),
-        unit_of_work.field("name", ast_expression.Text("Ann")),
-      ],
-    )
+    entity.materialize(users_metadata, [
+      unit_of_work.field("id", ast_expression.Int(1)),
+      unit_of_work.field("name", ast_expression.Text("Ann")),
+    ])
     |> expect_entity
   let dirty_user =
     clean_user
@@ -143,11 +132,16 @@ pub fn flush_normalizes_statuses_test() {
     |> runtime.flush(galchemy.compile)
     |> expect_flushed
   let identity = expect_identity(dirty_user)
-  let flushed_user =
-    case runtime.get(flushed_session, relation.table_ref("public", "users"), identity) {
-      option.Some(value) -> value
-      option.None -> panic as "expected tracked entity"
-    }
+  let flushed_user = case
+    runtime.get(
+      flushed_session,
+      relation.table_ref("public", "users"),
+      identity,
+    )
+  {
+    option.Some(value) -> value
+    option.None -> panic as "expected tracked entity"
+  }
 
   assert list.length(execution.queries(flush_result)) == 1
   assert entity.status(flushed_user) == entity.Clean
@@ -158,13 +152,10 @@ pub fn commit_removes_deleted_entities_test() {
   let snapshot = blog_snapshot()
   let users_metadata = expect_metadata(snapshot, "public", "users")
   let clean_user =
-    entity.materialize(
-      users_metadata,
-      [
-        unit_of_work.field("id", ast_expression.Int(1)),
-        unit_of_work.field("name", ast_expression.Text("Ann")),
-      ],
-    )
+    entity.materialize(users_metadata, [
+      unit_of_work.field("id", ast_expression.Int(1)),
+      unit_of_work.field("name", ast_expression.Text("Ann")),
+    ])
     |> expect_entity
   let deleted_user = entity.mark_deleted(clean_user)
 
@@ -178,7 +169,11 @@ pub fn commit_removes_deleted_entities_test() {
     |> expect_flushed
   let identity = expect_identity(clean_user)
 
-  assert runtime.get(committed_session, relation.table_ref("public", "users"), identity)
+  assert runtime.get(
+      committed_session,
+      relation.table_ref("public", "users"),
+      identity,
+    )
     == option.None
 }
 
@@ -186,13 +181,10 @@ pub fn detach_removes_entity_and_pending_changes_test() {
   let snapshot = blog_snapshot()
   let users_metadata = expect_metadata(snapshot, "public", "users")
   let clean_user =
-    entity.materialize(
-      users_metadata,
-      [
-        unit_of_work.field("id", ast_expression.Int(1)),
-        unit_of_work.field("name", ast_expression.Text("Ann")),
-      ],
-    )
+    entity.materialize(users_metadata, [
+      unit_of_work.field("id", ast_expression.Int(1)),
+      unit_of_work.field("name", ast_expression.Text("Ann")),
+    ])
     |> expect_entity
   let dirty_user =
     clean_user
@@ -216,13 +208,10 @@ pub fn refresh_restores_persisted_entity_and_clears_pending_test() {
   let snapshot = blog_snapshot()
   let users_metadata = expect_metadata(snapshot, "public", "users")
   let clean_user =
-    entity.materialize(
-      users_metadata,
-      [
-        unit_of_work.field("id", ast_expression.Int(1)),
-        unit_of_work.field("name", ast_expression.Text("Ann")),
-      ],
-    )
+    entity.materialize(users_metadata, [
+      unit_of_work.field("id", ast_expression.Int(1)),
+      unit_of_work.field("name", ast_expression.Text("Ann")),
+    ])
     |> expect_entity
   let dirty_user =
     clean_user
@@ -246,22 +235,17 @@ pub fn refresh_unknown_entity_test() {
   let snapshot = blog_snapshot()
   let users_metadata = expect_metadata(snapshot, "public", "users")
   let clean_user =
-    entity.materialize(
-      users_metadata,
-      [
-        unit_of_work.field("id", ast_expression.Int(1)),
-        unit_of_work.field("name", ast_expression.Text("Ann")),
-      ],
-    )
+    entity.materialize(users_metadata, [
+      unit_of_work.field("id", ast_expression.Int(1)),
+      unit_of_work.field("name", ast_expression.Text("Ann")),
+    ])
     |> expect_entity
 
   assert runtime.refresh(runtime.new(snapshot), clean_user)
-    == Error(
-      runtime.UnknownTrackedEntity(
-        relation.table_ref("public", "users"),
-        expect_identity(clean_user),
-      ),
-    )
+    == Error(runtime.UnknownTrackedEntity(
+      relation.table_ref("public", "users"),
+      expect_identity(clean_user),
+    ))
 }
 
 fn tracked_pending_queries(session: runtime.Session) -> List(query.Query) {
@@ -282,7 +266,9 @@ fn expect_metadata(
   }
 }
 
-fn expect_entity(result: Result(entity.Entity, entity.EntityError)) -> entity.Entity {
+fn expect_entity(
+  result: Result(entity.Entity, entity.EntityError),
+) -> entity.Entity {
   case result {
     Ok(value) -> value
     Error(error) -> panic as string.inspect(error)

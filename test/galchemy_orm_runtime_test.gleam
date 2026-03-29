@@ -16,11 +16,10 @@ pub fn main() -> Nil {
 }
 
 pub fn mapper_registry_from_snapshot_test() {
-  let registry =
-    case mapper_registry.from_snapshot(blog_snapshot()) {
-      Ok(value) -> value
-      Error(error) -> panic as string.inspect(error)
-    }
+  let registry = case mapper_registry.from_snapshot(blog_snapshot()) {
+    Ok(value) -> value
+    Error(error) -> panic as string.inspect(error)
+  }
 
   assert list.length(mapper_registry.all(registry)) == 2
   assert mapper_registry.lookup(registry, "public", "users")
@@ -32,150 +31,145 @@ pub fn mapper_registry_from_snapshot_test() {
 pub fn mapper_registry_duplicate_test() {
   let users_metadata = expect_metadata(blog_snapshot(), "public", "users")
 
-  let registry =
-    case mapper_registry.empty() |> mapper_registry.register(users_metadata) {
-      Ok(value) -> value
-      Error(error) -> panic as string.inspect(error)
-    }
+  let registry = case
+    mapper_registry.empty() |> mapper_registry.register(users_metadata)
+  {
+    Ok(value) -> value
+    Error(error) -> panic as string.inspect(error)
+  }
 
   assert mapper_registry.register(registry, users_metadata)
-    == Error(mapper_registry.DuplicateMapper(relation.table_ref("public", "users")))
+    == Error(
+      mapper_registry.DuplicateMapper(relation.table_ref("public", "users")),
+    )
 }
 
 pub fn mapper_registry_unknown_mapper_test() {
   assert mapper_registry.get(mapper_registry.empty(), "public", "users")
-    == Error(mapper_registry.UnknownMapper(relation.table_ref("public", "users")))
+    == Error(
+      mapper_registry.UnknownMapper(relation.table_ref("public", "users")),
+    )
 }
 
 pub fn identity_map_insert_and_get_test() {
   let users_metadata = expect_metadata(blog_snapshot(), "public", "users")
   let users_entity =
-    entity.materialize(
-      users_metadata,
-      [
-        unit_of_work.field("id", ast_expression.Int(1)),
-        unit_of_work.field("name", ast_expression.Text("Ann")),
-      ],
-    )
+    entity.materialize(users_metadata, [
+      unit_of_work.field("id", ast_expression.Int(1)),
+      unit_of_work.field("name", ast_expression.Text("Ann")),
+    ])
     |> expect_entity
 
-  let map =
-    case identity_map.insert(identity_map.empty(), users_entity) {
-      Ok(value) -> value
-      Error(error) -> panic as string.inspect(error)
-    }
+  let map = case identity_map.insert(identity_map.empty(), users_entity) {
+    Ok(value) -> value
+    Error(error) -> panic as string.inspect(error)
+  }
 
-  let identity =
-    case entity.identity(users_entity) {
-      Ok(value) -> value
-      Error(error) -> panic as string.inspect(error)
-    }
+  let identity = case entity.identity(users_entity) {
+    Ok(value) -> value
+    Error(error) -> panic as string.inspect(error)
+  }
 
   assert identity_map.get(map, relation.table_ref("public", "users"), identity)
     == option.Some(users_entity)
-  assert identity_map.values_for_table(map, relation.table_ref("public", "users"))
+  assert identity_map.values_for_table(
+      map,
+      relation.table_ref("public", "users"),
+    )
     == [users_entity]
 }
 
 pub fn identity_map_duplicate_identity_test() {
   let users_metadata = expect_metadata(blog_snapshot(), "public", "users")
   let users_entity =
-    entity.materialize(
-      users_metadata,
-      [
-        unit_of_work.field("id", ast_expression.Int(1)),
-        unit_of_work.field("name", ast_expression.Text("Ann")),
-      ],
-    )
+    entity.materialize(users_metadata, [
+      unit_of_work.field("id", ast_expression.Int(1)),
+      unit_of_work.field("name", ast_expression.Text("Ann")),
+    ])
     |> expect_entity
 
-  let inserted_map =
-    case identity_map.insert(identity_map.empty(), users_entity) {
-      Ok(value) -> value
-      Error(error) -> panic as string.inspect(error)
-    }
+  let inserted_map = case
+    identity_map.insert(identity_map.empty(), users_entity)
+  {
+    Ok(value) -> value
+    Error(error) -> panic as string.inspect(error)
+  }
 
-  let identity =
-    case entity.identity(users_entity) {
-      Ok(value) -> value
-      Error(error) -> panic as string.inspect(error)
-    }
+  let identity = case entity.identity(users_entity) {
+    Ok(value) -> value
+    Error(error) -> panic as string.inspect(error)
+  }
 
   assert identity_map.insert(inserted_map, users_entity)
-    == Error(
-      identity_map.DuplicateIdentity(
-        relation.table_ref("public", "users"),
-        identity,
-      ),
-    )
+    == Error(identity_map.DuplicateIdentity(
+      relation.table_ref("public", "users"),
+      identity,
+    ))
 }
 
 pub fn identity_map_upsert_test() {
   let users_metadata = expect_metadata(blog_snapshot(), "public", "users")
   let initial_entity =
-    entity.materialize(
-      users_metadata,
-      [
-        unit_of_work.field("id", ast_expression.Int(1)),
-        unit_of_work.field("name", ast_expression.Text("Ann")),
-      ],
-    )
+    entity.materialize(users_metadata, [
+      unit_of_work.field("id", ast_expression.Int(1)),
+      unit_of_work.field("name", ast_expression.Text("Ann")),
+    ])
     |> expect_entity
   let updated_entity =
     initial_entity
     |> entity.change([unit_of_work.field("name", ast_expression.Text("Annie"))])
     |> expect_entity
 
-  let map =
-    case identity_map.insert(identity_map.empty(), initial_entity) {
-      Ok(value) -> value
-      Error(error) -> panic as string.inspect(error)
-    }
+  let map = case identity_map.insert(identity_map.empty(), initial_entity) {
+    Ok(value) -> value
+    Error(error) -> panic as string.inspect(error)
+  }
 
-  let replaced_map =
-    case identity_map.upsert(map, updated_entity) {
-      Ok(value) -> value
-      Error(error) -> panic as string.inspect(error)
-    }
+  let replaced_map = case identity_map.upsert(map, updated_entity) {
+    Ok(value) -> value
+    Error(error) -> panic as string.inspect(error)
+  }
 
-  let identity =
-    case entity.identity(updated_entity) {
-      Ok(value) -> value
-      Error(error) -> panic as string.inspect(error)
-    }
+  let identity = case entity.identity(updated_entity) {
+    Ok(value) -> value
+    Error(error) -> panic as string.inspect(error)
+  }
 
-  assert identity_map.get(replaced_map, relation.table_ref("public", "users"), identity)
+  assert identity_map.get(
+      replaced_map,
+      relation.table_ref("public", "users"),
+      identity,
+    )
     == option.Some(updated_entity)
 }
 
 pub fn identity_map_remove_test() {
   let users_metadata = expect_metadata(blog_snapshot(), "public", "users")
   let users_entity =
-    entity.materialize(
-      users_metadata,
-      [
-        unit_of_work.field("id", ast_expression.Int(1)),
-        unit_of_work.field("name", ast_expression.Text("Ann")),
-      ],
-    )
+    entity.materialize(users_metadata, [
+      unit_of_work.field("id", ast_expression.Int(1)),
+      unit_of_work.field("name", ast_expression.Text("Ann")),
+    ])
     |> expect_entity
 
-  let map =
-    case identity_map.insert(identity_map.empty(), users_entity) {
-      Ok(value) -> value
-      Error(error) -> panic as string.inspect(error)
-    }
+  let map = case identity_map.insert(identity_map.empty(), users_entity) {
+    Ok(value) -> value
+    Error(error) -> panic as string.inspect(error)
+  }
 
-  let identity =
-    case entity.identity(users_entity) {
-      Ok(value) -> value
-      Error(error) -> panic as string.inspect(error)
-    }
+  let identity = case entity.identity(users_entity) {
+    Ok(value) -> value
+    Error(error) -> panic as string.inspect(error)
+  }
 
   let removed_map =
     identity_map.remove(map, relation.table_ref("public", "users"), identity)
 
-  assert identity_map.get(removed_map, relation.table_ref("public", "users"), identity)
+  assert identity_map.get(
+      removed_map,
+      relation.table_ref("public", "users"),
+      identity,
+    )
     == option.None
   assert identity_map.values(removed_map) == []
 }
@@ -191,7 +185,9 @@ fn expect_metadata(
   }
 }
 
-fn expect_entity(result: Result(entity.Entity, entity.EntityError)) -> entity.Entity {
+fn expect_entity(
+  result: Result(entity.Entity, entity.EntityError),
+) -> entity.Entity {
   case result {
     Ok(value) -> value
     Error(error) -> panic as string.inspect(error)

@@ -61,7 +61,9 @@ pub fn main() -> Nil {
   io.println("Generated modules:")
   io.println(string.inspect(modules))
 
-  case migration.plan("20260329_add_user_email", current_schema(), target_schema()) {
+  case
+    migration.plan("20260329_add_user_email", current_schema(), target_schema())
+  {
     Ok(plan) -> {
       io.println("Migration plan:")
       io.println(string.inspect(plan))

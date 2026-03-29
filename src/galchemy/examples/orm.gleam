@@ -7,48 +7,47 @@ import galchemy/orm/mapper_registry
 import galchemy/orm/materializer
 import galchemy/orm/metadata
 import galchemy/schema/model
-import galchemy/sql/compiler
 import galchemy/session/execution
 import galchemy/session/runtime
 import galchemy/session/unit_of_work
+import galchemy/sql/compiler
 import gleam/io
 import gleam/option
 import gleam/string
 
 pub fn main() -> Nil {
   let snapshot = blog_snapshot()
-  let users_metadata =
-    case metadata.from_snapshot(snapshot, "public", "users") {
-      Ok(value) -> value
-      Error(error) -> panic as string.inspect(error)
-    }
+  let users_metadata = case
+    metadata.from_snapshot(snapshot, "public", "users")
+  {
+    Ok(value) -> value
+    Error(error) -> panic as string.inspect(error)
+  }
 
-  let inserted_user =
-    case entity.new_(
-      users_metadata,
-      [
-        unit_of_work.field("id", ast_expression.Int(1)),
-        unit_of_work.field("name", ast_expression.Text("Ann")),
-      ],
-    ) {
-      Ok(value) -> value
-      Error(error) -> panic as string.inspect(error)
-    }
+  let inserted_user = case
+    entity.new_(users_metadata, [
+      unit_of_work.field("id", ast_expression.Int(1)),
+      unit_of_work.field("name", ast_expression.Text("Ann")),
+    ])
+  {
+    Ok(value) -> value
+    Error(error) -> panic as string.inspect(error)
+  }
 
   let updated_user =
-    case entity.materialize(
-      users_metadata,
-      [
+    case
+      entity.materialize(users_metadata, [
         unit_of_work.field("id", ast_expression.Int(2)),
         unit_of_work.field("name", ast_expression.Text("Bob")),
-      ],
-    ) {
+      ])
+    {
       Ok(value) -> value
       Error(error) -> panic as string.inspect(error)
     }
     |> entity.change([unit_of_work.field("name", ast_expression.Text("Bobby"))])
     |> unwrap_entity
-  let registry = blog_snapshot() |> mapper_registry.from_snapshot |> unwrap_registry
+  let registry =
+    blog_snapshot() |> mapper_registry.from_snapshot |> unwrap_registry
   let #(loaded_user, _) =
     materializer.new(registry)
     |> materializer.materialize(
@@ -58,20 +57,18 @@ pub fn main() -> Nil {
       ]),
     )
     |> unwrap_materialized
-  let posts_metadata =
-    case metadata.from_snapshot(snapshot, "public", "posts") {
-      Ok(value) -> value
-      Error(error) -> panic as string.inspect(error)
-    }
+  let posts_metadata = case
+    metadata.from_snapshot(snapshot, "public", "posts")
+  {
+    Ok(value) -> value
+    Error(error) -> panic as string.inspect(error)
+  }
   let related_post =
-    entity.materialize(
-      posts_metadata,
-      [
-        unit_of_work.field("id", ast_expression.Int(20)),
-        unit_of_work.field("user_id", ast_expression.Int(3)),
-        unit_of_work.field("title", ast_expression.Text("Hydrated")),
-      ],
-    )
+    entity.materialize(posts_metadata, [
+      unit_of_work.field("id", ast_expression.Int(20)),
+      unit_of_work.field("user_id", ast_expression.Int(3)),
+      unit_of_work.field("title", ast_expression.Text("Hydrated")),
+    ])
     |> unwrap_entity
   let hydrated_user =
     graph.hydrate_only(
@@ -88,11 +85,10 @@ pub fn main() -> Nil {
     |> entity.stage(updated_user)
     |> unwrap_pending
 
-  let flush_plan =
-    case unit_of_work.flush_plan(pending_work) {
-      Ok(value) -> value
-      Error(error) -> panic as string.inspect(error)
-    }
+  let flush_plan = case unit_of_work.flush_plan(pending_work) {
+    Ok(value) -> value
+    Error(error) -> panic as string.inspect(error)
+  }
   let #(committed_flush, committed_session) =
     runtime.new(snapshot)
     |> runtime.track(loaded_user)
@@ -193,11 +189,10 @@ fn seed_identity_map_loop(
   case entities {
     [] -> acc
     [next_entity, ..rest] -> {
-      let next_map =
-        case identity_map.insert(acc, next_entity) {
-          Ok(value) -> value
-          Error(error) -> panic as string.inspect(error)
-        }
+      let next_map = case identity_map.insert(acc, next_entity) {
+        Ok(value) -> value
+        Error(error) -> panic as string.inspect(error)
+      }
 
       seed_identity_map_loop(rest, next_map)
     }

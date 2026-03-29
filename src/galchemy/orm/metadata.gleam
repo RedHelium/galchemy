@@ -29,23 +29,22 @@ pub fn from_snapshot(
     option.Some(table_schema) -> {
       let identity_columns = derive_identity_columns(table_schema)
       let columns = list.map(table_schema.columns, fn(column) { column.name })
-      let relations =
-        case relation.for_table(snapshot, schema_name, table_name) {
-          option.Some(table_relations) -> table_relations.relations
-          option.None -> []
-        }
+      let relations = case
+        relation.for_table(snapshot, schema_name, table_name)
+      {
+        option.Some(table_relations) -> table_relations.relations
+        option.None -> []
+      }
 
       case identity_columns {
         [] -> Error(MissingIdentity(table_ref))
         _ ->
-          Ok(
-            ModelMetadata(
-              table: table_ref,
-              identity_columns: identity_columns,
-              columns: columns,
-              relations: relations,
-            ),
-          )
+          Ok(ModelMetadata(
+            table: table_ref,
+            identity_columns: identity_columns,
+            columns: columns,
+            relations: relations,
+          ))
       }
     }
   }
@@ -74,7 +73,7 @@ fn derive_identity_columns(table_schema: model.TableSchema) -> List(String) {
     option.Some(primary_key) -> primary_key.columns
     option.None ->
       case table_schema.unique_constraints {
-        [first, .._] -> first.columns
+        [first, ..] -> first.columns
         [] -> []
       }
   }
@@ -87,7 +86,10 @@ fn find_table(
   case tables {
     [] -> option.None
     [table_schema, ..rest] -> {
-      case table_schema.schema == table_ref.schema && table_schema.name == table_ref.name {
+      case
+        table_schema.schema == table_ref.schema
+        && table_schema.name == table_ref.name
+      {
         True -> option.Some(table_schema)
         False -> find_table(rest, table_ref)
       }

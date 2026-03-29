@@ -19,15 +19,11 @@ pub fn begin(
   TransactionSession(connection: connection, session: session)
 }
 
-pub fn connection(
-  transaction: TransactionSession(connection),
-) -> connection {
+pub fn connection(transaction: TransactionSession(connection)) -> connection {
   transaction.connection
 }
 
-pub fn session(
-  transaction: TransactionSession(connection),
-) -> runtime.Session {
+pub fn session(transaction: TransactionSession(connection)) -> runtime.Session {
   transaction.session
 }
 
@@ -36,7 +32,8 @@ pub fn track(
   next_entity: entity.Entity,
 ) -> Result(TransactionSession(connection), TransactionError(exec_error)) {
   case runtime.track(transaction.session, next_entity) {
-    Ok(next_session) -> Ok(TransactionSession(..transaction, session: next_session))
+    Ok(next_session) ->
+      Ok(TransactionSession(..transaction, session: next_session))
     Error(error) -> Error(TrackError(error))
   }
 }
@@ -46,7 +43,8 @@ pub fn stage(
   next_entity: entity.Entity,
 ) -> Result(TransactionSession(connection), TransactionError(exec_error)) {
   case runtime.stage(transaction.session, next_entity) {
-    Ok(next_session) -> Ok(TransactionSession(..transaction, session: next_session))
+    Ok(next_session) ->
+      Ok(TransactionSession(..transaction, session: next_session))
     Error(error) -> Error(TrackError(error))
   }
 }
@@ -58,9 +56,11 @@ pub fn flush(
   #(execution.FlushExecution(result), TransactionSession(connection)),
   TransactionError(exec_error),
 ) {
-  case runtime.flush(transaction.session, fn(next_query) {
-    executor(next_query, transaction.connection)
-  }) {
+  case
+    runtime.flush(transaction.session, fn(next_query) {
+      executor(next_query, transaction.connection)
+    })
+  {
     Ok(#(flush_result, next_session)) ->
       Ok(#(
         flush_result,
@@ -77,9 +77,11 @@ pub fn commit(
   #(execution.FlushExecution(result), runtime.Session),
   TransactionError(exec_error),
 ) {
-  case runtime.commit(transaction.session, fn(next_query) {
-    executor(next_query, transaction.connection)
-  }) {
+  case
+    runtime.commit(transaction.session, fn(next_query) {
+      executor(next_query, transaction.connection)
+    })
+  {
     Ok(result) -> Ok(result)
     Error(error) -> Error(ExecutionError(error))
   }

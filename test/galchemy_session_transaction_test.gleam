@@ -5,11 +5,11 @@ import galchemy/orm/entity
 import galchemy/orm/metadata
 import galchemy/schema/model
 import galchemy/schema/relation
-import galchemy/sql/compiler
 import galchemy/session/execution
 import galchemy/session/runtime
 import galchemy/session/transaction
 import galchemy/session/unit_of_work
+import galchemy/sql/compiler
 import gleam/list
 import gleam/option
 import gleam/string
@@ -23,13 +23,10 @@ pub fn transaction_stage_and_flush_test() {
   let snapshot = blog_snapshot()
   let users_metadata = expect_metadata(snapshot)
   let new_user =
-    entity.new_(
-      users_metadata,
-      [
-        unit_of_work.field("id", ast_expression.Int(1)),
-        unit_of_work.field("name", ast_expression.Text("Ann")),
-      ],
-    )
+    entity.new_(users_metadata, [
+      unit_of_work.field("id", ast_expression.Int(1)),
+      unit_of_work.field("name", ast_expression.Text("Ann")),
+    ])
     |> expect_entity
 
   let #(flush_result, next_transaction) =
@@ -49,13 +46,10 @@ pub fn transaction_commit_returns_runtime_session_test() {
   let snapshot = blog_snapshot()
   let users_metadata = expect_metadata(snapshot)
   let clean_user =
-    entity.materialize(
-      users_metadata,
-      [
-        unit_of_work.field("id", ast_expression.Int(1)),
-        unit_of_work.field("name", ast_expression.Text("Ann")),
-      ],
-    )
+    entity.materialize(users_metadata, [
+      unit_of_work.field("id", ast_expression.Int(1)),
+      unit_of_work.field("name", ast_expression.Text("Ann")),
+    ])
     |> expect_entity
   let dirty_user =
     clean_user
@@ -70,15 +64,16 @@ pub fn transaction_commit_returns_runtime_session_test() {
     |> expect_transaction
     |> transaction.commit(fake_executor)
     |> expect_committed
-  let committed =
-    case runtime.get(
+  let committed = case
+    runtime.get(
       committed_session,
       relation.table_ref("public", "users"),
       expect_identity(clean_user),
-    ) {
-      option.Some(value) -> value
-      option.None -> panic as "expected committed entity"
-    }
+    )
+  {
+    option.Some(value) -> value
+    option.None -> panic as "expected committed entity"
+  }
 
   assert list.length(execution.queries(flush_result)) == 1
   assert entity.status(committed) == entity.Clean
@@ -88,13 +83,10 @@ pub fn transaction_rollback_preserves_connection_test() {
   let snapshot = blog_snapshot()
   let users_metadata = expect_metadata(snapshot)
   let new_user =
-    entity.new_(
-      users_metadata,
-      [
-        unit_of_work.field("id", ast_expression.Int(1)),
-        unit_of_work.field("name", ast_expression.Text("Ann")),
-      ],
-    )
+    entity.new_(users_metadata, [
+      unit_of_work.field("id", ast_expression.Int(1)),
+      unit_of_work.field("name", ast_expression.Text("Ann")),
+    ])
     |> expect_entity
 
   let rolled_back =
@@ -111,13 +103,10 @@ pub fn transaction_executor_error_test() {
   let snapshot = blog_snapshot()
   let users_metadata = expect_metadata(snapshot)
   let new_user =
-    entity.new_(
-      users_metadata,
-      [
-        unit_of_work.field("id", ast_expression.Int(1)),
-        unit_of_work.field("name", ast_expression.Text("Ann")),
-      ],
-    )
+    entity.new_(users_metadata, [
+      unit_of_work.field("id", ast_expression.Int(1)),
+      unit_of_work.field("name", ast_expression.Text("Ann")),
+    ])
     |> expect_entity
 
   assert transaction.begin("tx-4", runtime.new(snapshot))
@@ -125,7 +114,9 @@ pub fn transaction_executor_error_test() {
     |> expect_transaction
     |> transaction.flush(failing_executor)
     == Error(
-      transaction.ExecutionError(runtime.ExecutionError(execution.QueryError("boom"))),
+      transaction.ExecutionError(
+        runtime.ExecutionError(execution.QueryError("boom")),
+      ),
     )
 }
 
@@ -150,7 +141,9 @@ fn expect_metadata(snapshot: model.SchemaSnapshot) -> metadata.ModelMetadata {
   }
 }
 
-fn expect_entity(result: Result(entity.Entity, entity.EntityError)) -> entity.Entity {
+fn expect_entity(
+  result: Result(entity.Entity, entity.EntityError),
+) -> entity.Entity {
   case result {
     Ok(value) -> value
     Error(error) -> panic as string.inspect(error)
@@ -171,10 +164,16 @@ fn expect_transaction(
 
 fn expect_flushed(
   result: Result(
-    #(execution.FlushExecution(compiler.CompiledQuery), transaction.TransactionSession(String)),
+    #(
+      execution.FlushExecution(compiler.CompiledQuery),
+      transaction.TransactionSession(String),
+    ),
     transaction.TransactionError(compiler.CompileError),
   ),
-) -> #(execution.FlushExecution(compiler.CompiledQuery), transaction.TransactionSession(String)) {
+) -> #(
+  execution.FlushExecution(compiler.CompiledQuery),
+  transaction.TransactionSession(String),
+) {
   case result {
     Ok(value) -> value
     Error(error) -> panic as string.inspect(error)

@@ -16,21 +16,22 @@ pub fn main() -> Nil {
   let users = table.as_(table.table("users"), "u")
   let user_id = table.int(users, "id")
 
-  let eager_query =
-    case loading.apply_eager(
+  let eager_query = case
+    loading.apply_eager(
       select.select([expr.item(expr.col(user_id))])
-      |> select.from(users),
+        |> select.from(users),
       snapshot(),
       users,
       "posts",
       option.Some("p"),
-    ) {
-      Ok(value) -> value
-      Error(error) -> panic as string.inspect(error)
-    }
+    )
+  {
+    Ok(value) -> value
+    Error(error) -> panic as string.inspect(error)
+  }
 
-  let lazy_load =
-    case loading.lazy_query(
+  let lazy_load = case
+    loading.lazy_query(
       snapshot(),
       relation.table_ref("public", "users"),
       "posts",
@@ -38,10 +39,11 @@ pub fn main() -> Nil {
         unit_of_work.identity([unit_of_work.field("id", ast_expression.Int(1))]),
         unit_of_work.identity([unit_of_work.field("id", ast_expression.Int(2))]),
       ],
-    ) {
-      Ok(value) -> value
-      Error(error) -> panic as string.inspect(error)
-    }
+    )
+  {
+    Ok(value) -> value
+    Error(error) -> panic as string.inspect(error)
+  }
 
   io.println("Loading example")
   io.println("Eager loading query:")

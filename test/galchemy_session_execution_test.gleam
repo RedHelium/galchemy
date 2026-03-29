@@ -1,11 +1,11 @@
 import galchemy
 import galchemy/ast/expression as ast_expression
 import galchemy/ast/query
-import galchemy/sql/compiler
 import galchemy/schema/model
 import galchemy/schema/relation
 import galchemy/session/execution
 import galchemy/session/unit_of_work
+import galchemy/sql/compiler
 import gleam/list
 import gleam/option
 import gleam/string
@@ -51,12 +51,13 @@ pub fn execute_flush_in_dependency_order_test() {
       sql
     })
 
-  assert executed_sql == [
-    "INSERT INTO \"public\".\"users\" (\"id\", \"name\") VALUES ($1, $2)",
-    "INSERT INTO \"public\".\"posts\" (\"id\", \"user_id\", \"title\") VALUES ($1, $2, $3)",
-    "UPDATE \"public\".\"users\" SET \"name\" = $1 WHERE (\"public\".\"users\".\"id\" = $2)",
-    "DELETE FROM \"public\".\"posts\" WHERE (\"public\".\"posts\".\"id\" = $1)",
-  ]
+  assert executed_sql
+    == [
+      "INSERT INTO \"public\".\"users\" (\"id\", \"name\") VALUES ($1, $2)",
+      "INSERT INTO \"public\".\"posts\" (\"id\", \"user_id\", \"title\") VALUES ($1, $2, $3)",
+      "UPDATE \"public\".\"users\" SET \"name\" = $1 WHERE (\"public\".\"users\".\"id\" = $2)",
+      "DELETE FROM \"public\".\"posts\" WHERE (\"public\".\"posts\".\"id\" = $1)",
+    ]
   assert is_empty_session(cleared_session)
 }
 
@@ -77,10 +78,7 @@ pub fn execute_flush_returns_query_error_test() {
 pub fn execute_flush_returns_session_error_test() {
   let session =
     unit_of_work.new(blog_snapshot())
-    |> unit_of_work.register_new(
-      relation.table_ref("public", "users"),
-      [],
-    )
+    |> unit_of_work.register_new(relation.table_ref("public", "users"), [])
 
   assert execution.execute(session, galchemy.compile)
     == Error(
@@ -98,16 +96,10 @@ fn failing_executor(
 
 fn expect_execution(
   result: Result(
-    #(
-      execution.FlushExecution(compiler.CompiledQuery),
-      unit_of_work.Session,
-    ),
+    #(execution.FlushExecution(compiler.CompiledQuery), unit_of_work.Session),
     execution.ExecutionError(compiler.CompileError),
   ),
-) -> #(
-  execution.FlushExecution(compiler.CompiledQuery),
-  unit_of_work.Session,
-) {
+) -> #(execution.FlushExecution(compiler.CompiledQuery), unit_of_work.Session) {
   case result {
     Ok(value) -> value
     Error(error) -> panic as string.inspect(error)

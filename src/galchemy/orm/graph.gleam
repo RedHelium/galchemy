@@ -71,19 +71,18 @@ fn hydrate_relations(
   acc: List(HydratedRelation),
 ) -> Result(HydratedEntity, HydrationError) {
   case relation_names {
-    [] ->
-      Ok(HydratedEntity(entity: next_entity, relations: list.reverse(acc)))
+    [] -> Ok(HydratedEntity(entity: next_entity, relations: list.reverse(acc)))
     [relation_name, ..rest] -> {
-      use #(updated_entity, hydrated_relation) <- result_try(
-        hydrate_relation(next_entity, relation_name, identities),
-      )
-
-      hydrate_relations(
-        updated_entity,
-        rest,
+      use #(updated_entity, hydrated_relation) <- result_try(hydrate_relation(
+        next_entity,
+        relation_name,
         identities,
-        [hydrated_relation, ..acc],
-      )
+      ))
+
+      hydrate_relations(updated_entity, rest, identities, [
+        hydrated_relation,
+        ..acc
+      ])
     }
   }
 }
@@ -97,9 +96,11 @@ fn hydrate_many_loop(
   case entities {
     [] -> Ok(list.reverse(acc))
     [next_entity, ..rest] -> {
-      use hydrated <- result_try(
-        hydrate_only(next_entity, relation_names, identities),
-      )
+      use hydrated <- result_try(hydrate_only(
+        next_entity,
+        relation_names,
+        identities,
+      ))
 
       hydrate_many_loop(rest, relation_names, identities, [hydrated, ..acc])
     }
@@ -113,21 +114,20 @@ fn hydrate_relation(
 ) -> Result(#(entity.Entity, HydratedRelation), HydrationError) {
   case metadata.relation_named(next_entity.metadata, relation_name) {
     option.None ->
-      Error(
-        UnknownRelation(
-          table: next_entity.metadata.table,
-          relation_name: relation_name,
-        ),
-      )
+      Error(UnknownRelation(
+        table: next_entity.metadata.table,
+        relation_name: relation_name,
+      ))
     option.Some(next_relation) -> {
       let related_entities =
         identity_map.values_for_table(identities, next_relation.related_table)
         |> list.filter(keeping: fn(candidate) {
           related_matches(next_entity, next_relation, candidate)
         })
-      use loaded_entity <- result_try(
-        mark_relation_loaded(next_entity, relation_name),
-      )
+      use loaded_entity <- result_try(mark_relation_loaded(
+        next_entity,
+        relation_name,
+      ))
 
       Ok(#(
         loaded_entity,
@@ -147,7 +147,7 @@ fn relation_value(
   case next_relation.kind {
     relation.BelongsTo ->
       case related_entities {
-        [first, .._] -> ToOne(option.Some(first))
+        [first, ..] -> ToOne(option.Some(first))
         [] -> ToOne(option.None)
       }
     relation.HasMany -> ToMany(related_entities)
@@ -163,7 +163,7 @@ fn related_matches(
     [] -> False
     [first, ..rest] -> {
       pair_matches(next_entity, related_entity, first)
-        && remaining_pairs_match(next_entity, related_entity, rest)
+      && remaining_pairs_match(next_entity, related_entity, rest)
     }
   }
 }
@@ -177,7 +177,7 @@ fn remaining_pairs_match(
     [] -> True
     [pair, ..rest] ->
       pair_matches(next_entity, related_entity, pair)
-        && remaining_pairs_match(next_entity, related_entity, rest)
+      && remaining_pairs_match(next_entity, related_entity, rest)
   }
 }
 

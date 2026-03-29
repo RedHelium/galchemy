@@ -39,17 +39,13 @@ pub fn insert(
         option.None ->
           Ok(
             IdentityMap(
-              entries:
-                list.append(
-                  map.entries,
-                  [
-                    IdentityEntry(
-                      table: table_ref,
-                      identity: next_identity,
-                      entity: next_entity,
-                    ),
-                  ],
+              entries: list.append(map.entries, [
+                IdentityEntry(
+                  table: table_ref,
+                  identity: next_identity,
+                  entity: next_entity,
                 ),
+              ]),
             ),
           )
       }
@@ -65,17 +61,14 @@ pub fn upsert(
     Error(error) -> Error(EntityError(error))
     Ok(next_identity) ->
       Ok(
-        IdentityMap(
-          entries:
-            upsert_entry(
-              map.entries,
-              IdentityEntry(
-                table: next_entity.metadata.table,
-                identity: next_identity,
-                entity: next_entity,
-              ),
-            ),
-        ),
+        IdentityMap(entries: upsert_entry(
+          map.entries,
+          IdentityEntry(
+            table: next_entity.metadata.table,
+            identity: next_identity,
+            entity: next_entity,
+          ),
+        )),
       )
   }
 }
@@ -155,7 +148,9 @@ fn upsert_entry(
   case entries {
     [] -> [next_entry]
     [entry, ..rest] -> {
-      case entry.table == next_entry.table && entry.identity == next_entry.identity {
+      case
+        entry.table == next_entry.table && entry.identity == next_entry.identity
+      {
         True -> [next_entry, ..rest]
         False -> [entry, ..upsert_entry(rest, next_entry)]
       }

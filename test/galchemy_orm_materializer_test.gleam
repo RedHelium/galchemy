@@ -29,17 +29,16 @@ pub fn materialize_row_inserts_into_identity_map_test() {
     )
     |> expect_materialized
 
-  let identity =
-    case entity.identity(next_entity) {
-      Ok(value) -> value
-      Error(error) -> panic as string.inspect(error)
-    }
+  let identity = case entity.identity(next_entity) {
+    Ok(value) -> value
+    Error(error) -> panic as string.inspect(error)
+  }
 
   assert identity_map.get(
-    materializer.identity_map(next_materializer),
-    relation.table_ref("public", "users"),
-    identity,
-  )
+      materializer.identity_map(next_materializer),
+      relation.table_ref("public", "users"),
+      identity,
+    )
     == option.Some(next_entity)
 }
 
@@ -47,23 +46,21 @@ pub fn materialize_row_reuses_existing_identity_test() {
   let registry = expect_registry(blog_snapshot())
   let users_metadata = expect_metadata(blog_snapshot(), "public", "users")
   let dirty_entity =
-    entity.materialize(
-      users_metadata,
-      [
-        unit_of_work.field("id", ast_expression.Int(1)),
-        unit_of_work.field("name", ast_expression.Text("Ann")),
-      ],
-    )
+    entity.materialize(users_metadata, [
+      unit_of_work.field("id", ast_expression.Int(1)),
+      unit_of_work.field("name", ast_expression.Text("Ann")),
+    ])
     |> expect_entity
     |> entity.change([
       unit_of_work.field("name", ast_expression.Text("Annie")),
     ])
     |> expect_entity
-  let identities =
-    case identity_map.insert(identity_map.empty(), dirty_entity) {
-      Ok(value) -> value
-      Error(error) -> panic as string.inspect(error)
-    }
+  let identities = case
+    identity_map.insert(identity_map.empty(), dirty_entity)
+  {
+    Ok(value) -> value
+    Error(error) -> panic as string.inspect(error)
+  }
   let seeded_materializer = materializer.with_identity_map(registry, identities)
 
   let #(materialized_entity, next_materializer) =
@@ -77,18 +74,19 @@ pub fn materialize_row_reuses_existing_identity_test() {
     |> expect_materialized
 
   assert materialized_entity == dirty_entity
-  assert identity_map.values(materializer.identity_map(next_materializer)) == [dirty_entity]
+  assert identity_map.values(materializer.identity_map(next_materializer))
+    == [dirty_entity]
 }
 
 pub fn materialize_row_unknown_mapper_test() {
   let registry = expect_registry(blog_snapshot())
 
   assert materializer.materialize(
-    materializer.new(registry),
-    materializer.row("public", "comments", [
-      unit_of_work.field("id", ast_expression.Int(1)),
-    ]),
-  )
+      materializer.new(registry),
+      materializer.row("public", "comments", [
+        unit_of_work.field("id", ast_expression.Int(1)),
+      ]),
+    )
     == Error(
       materializer.RegistryError(
         mapper_registry.UnknownMapper(relation.table_ref("public", "comments")),
@@ -100,19 +98,17 @@ pub fn materialize_row_invalid_fields_test() {
   let registry = expect_registry(blog_snapshot())
 
   assert materializer.materialize(
-    materializer.new(registry),
-    materializer.row("public", "users", [
-      unit_of_work.field("id", ast_expression.Int(1)),
-      unit_of_work.field("unknown", ast_expression.Text("bad")),
-    ]),
-  )
+      materializer.new(registry),
+      materializer.row("public", "users", [
+        unit_of_work.field("id", ast_expression.Int(1)),
+        unit_of_work.field("unknown", ast_expression.Text("bad")),
+      ]),
+    )
     == Error(
-      materializer.EntityError(
-        entity.UnknownColumn(
-          table: relation.table_ref("public", "users"),
-          column: "unknown",
-        ),
-      ),
+      materializer.EntityError(entity.UnknownColumn(
+        table: relation.table_ref("public", "users"),
+        column: "unknown",
+      )),
     )
 }
 
@@ -135,7 +131,10 @@ pub fn materialize_many_preserves_order_test() {
     |> expect_many_materialized
 
   assert list.length(entities) == 2
-  assert list.length(identity_map.values(materializer.identity_map(next_materializer))) == 2
+  assert list.length(
+      identity_map.values(materializer.identity_map(next_materializer)),
+    )
+    == 2
   assert entity.status(first_entity(entities)) == entity.Clean
 }
 
@@ -166,7 +165,9 @@ fn expect_metadata(
   }
 }
 
-fn expect_entity(result: Result(entity.Entity, entity.EntityError)) -> entity.Entity {
+fn expect_entity(
+  result: Result(entity.Entity, entity.EntityError),
+) -> entity.Entity {
   case result {
     Ok(value) -> value
     Error(error) -> panic as string.inspect(error)

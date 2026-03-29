@@ -20,23 +20,17 @@ pub fn hydrate_belongs_to_test() {
   let users_metadata = expect_metadata(snapshot, "public", "users")
   let posts_metadata = expect_metadata(snapshot, "public", "posts")
   let user =
-    entity.materialize(
-      users_metadata,
-      [
-        unit_of_work.field("id", ast_expression.Int(1)),
-        unit_of_work.field("name", ast_expression.Text("Ann")),
-      ],
-    )
+    entity.materialize(users_metadata, [
+      unit_of_work.field("id", ast_expression.Int(1)),
+      unit_of_work.field("name", ast_expression.Text("Ann")),
+    ])
     |> expect_entity
   let post =
-    entity.materialize(
-      posts_metadata,
-      [
-        unit_of_work.field("id", ast_expression.Int(10)),
-        unit_of_work.field("user_id", ast_expression.Int(1)),
-        unit_of_work.field("title", ast_expression.Text("Hello")),
-      ],
-    )
+    entity.materialize(posts_metadata, [
+      unit_of_work.field("id", ast_expression.Int(10)),
+      unit_of_work.field("user_id", ast_expression.Int(1)),
+      unit_of_work.field("title", ast_expression.Text("Hello")),
+    ])
     |> expect_entity
   let identities = seed_identity_map([user, post])
 
@@ -58,33 +52,24 @@ pub fn hydrate_has_many_test() {
   let users_metadata = expect_metadata(snapshot, "public", "users")
   let posts_metadata = expect_metadata(snapshot, "public", "posts")
   let user =
-    entity.materialize(
-      users_metadata,
-      [
-        unit_of_work.field("id", ast_expression.Int(1)),
-        unit_of_work.field("name", ast_expression.Text("Ann")),
-      ],
-    )
+    entity.materialize(users_metadata, [
+      unit_of_work.field("id", ast_expression.Int(1)),
+      unit_of_work.field("name", ast_expression.Text("Ann")),
+    ])
     |> expect_entity
   let first_post =
-    entity.materialize(
-      posts_metadata,
-      [
-        unit_of_work.field("id", ast_expression.Int(10)),
-        unit_of_work.field("user_id", ast_expression.Int(1)),
-        unit_of_work.field("title", ast_expression.Text("Hello")),
-      ],
-    )
+    entity.materialize(posts_metadata, [
+      unit_of_work.field("id", ast_expression.Int(10)),
+      unit_of_work.field("user_id", ast_expression.Int(1)),
+      unit_of_work.field("title", ast_expression.Text("Hello")),
+    ])
     |> expect_entity
   let second_post =
-    entity.materialize(
-      posts_metadata,
-      [
-        unit_of_work.field("id", ast_expression.Int(11)),
-        unit_of_work.field("user_id", ast_expression.Int(1)),
-        unit_of_work.field("title", ast_expression.Text("World")),
-      ],
-    )
+    entity.materialize(posts_metadata, [
+      unit_of_work.field("id", ast_expression.Int(11)),
+      unit_of_work.field("user_id", ast_expression.Int(1)),
+      unit_of_work.field("title", ast_expression.Text("World")),
+    ])
     |> expect_entity
   let identities = seed_identity_map([user, first_post, second_post])
 
@@ -105,14 +90,11 @@ pub fn hydrate_missing_belongs_to_test() {
   let snapshot = blog_snapshot()
   let posts_metadata = expect_metadata(snapshot, "public", "posts")
   let post =
-    entity.materialize(
-      posts_metadata,
-      [
-        unit_of_work.field("id", ast_expression.Int(10)),
-        unit_of_work.field("user_id", ast_expression.Int(999)),
-        unit_of_work.field("title", ast_expression.Text("Orphan")),
-      ],
-    )
+    entity.materialize(posts_metadata, [
+      unit_of_work.field("id", ast_expression.Int(10)),
+      unit_of_work.field("user_id", ast_expression.Int(999)),
+      unit_of_work.field("title", ast_expression.Text("Orphan")),
+    ])
     |> expect_entity
 
   let hydrated =
@@ -130,22 +112,17 @@ pub fn hydrate_unknown_relation_test() {
   let snapshot = blog_snapshot()
   let users_metadata = expect_metadata(snapshot, "public", "users")
   let user =
-    entity.materialize(
-      users_metadata,
-      [
-        unit_of_work.field("id", ast_expression.Int(1)),
-        unit_of_work.field("name", ast_expression.Text("Ann")),
-      ],
-    )
+    entity.materialize(users_metadata, [
+      unit_of_work.field("id", ast_expression.Int(1)),
+      unit_of_work.field("name", ast_expression.Text("Ann")),
+    ])
     |> expect_entity
 
   assert graph.hydrate_only(user, ["comments"], identity_map.empty())
-    == Error(
-      graph.UnknownRelation(
-        table: relation.table_ref("public", "users"),
-        relation_name: "comments",
-      ),
-    )
+    == Error(graph.UnknownRelation(
+      table: relation.table_ref("public", "users"),
+      relation_name: "comments",
+    ))
 }
 
 pub fn hydrate_many_test() {
@@ -153,44 +130,33 @@ pub fn hydrate_many_test() {
   let users_metadata = expect_metadata(snapshot, "public", "users")
   let posts_metadata = expect_metadata(snapshot, "public", "posts")
   let first_user =
-    entity.materialize(
-      users_metadata,
-      [
-        unit_of_work.field("id", ast_expression.Int(1)),
-        unit_of_work.field("name", ast_expression.Text("Ann")),
-      ],
-    )
+    entity.materialize(users_metadata, [
+      unit_of_work.field("id", ast_expression.Int(1)),
+      unit_of_work.field("name", ast_expression.Text("Ann")),
+    ])
     |> expect_entity
   let second_user =
-    entity.materialize(
-      users_metadata,
-      [
-        unit_of_work.field("id", ast_expression.Int(2)),
-        unit_of_work.field("name", ast_expression.Text("Bob")),
-      ],
-    )
+    entity.materialize(users_metadata, [
+      unit_of_work.field("id", ast_expression.Int(2)),
+      unit_of_work.field("name", ast_expression.Text("Bob")),
+    ])
     |> expect_entity
   let first_post =
-    entity.materialize(
-      posts_metadata,
-      [
-        unit_of_work.field("id", ast_expression.Int(10)),
-        unit_of_work.field("user_id", ast_expression.Int(1)),
-        unit_of_work.field("title", ast_expression.Text("Hello")),
-      ],
-    )
+    entity.materialize(posts_metadata, [
+      unit_of_work.field("id", ast_expression.Int(10)),
+      unit_of_work.field("user_id", ast_expression.Int(1)),
+      unit_of_work.field("title", ast_expression.Text("Hello")),
+    ])
     |> expect_entity
   let second_post =
-    entity.materialize(
-      posts_metadata,
-      [
-        unit_of_work.field("id", ast_expression.Int(11)),
-        unit_of_work.field("user_id", ast_expression.Int(2)),
-        unit_of_work.field("title", ast_expression.Text("World")),
-      ],
-    )
+    entity.materialize(posts_metadata, [
+      unit_of_work.field("id", ast_expression.Int(11)),
+      unit_of_work.field("user_id", ast_expression.Int(2)),
+      unit_of_work.field("title", ast_expression.Text("World")),
+    ])
     |> expect_entity
-  let identities = seed_identity_map([first_user, second_user, first_post, second_post])
+  let identities =
+    seed_identity_map([first_user, second_user, first_post, second_post])
 
   let hydrated_users =
     graph.hydrate_many([first_user, second_user], ["posts"], identities)
@@ -215,11 +181,10 @@ fn seed_identity_map_loop(
   case entities {
     [] -> acc
     [next_entity, ..rest] -> {
-      let next_map =
-        case identity_map.insert(acc, next_entity) {
-          Ok(value) -> value
-          Error(error) -> panic as string.inspect(error)
-        }
+      let next_map = case identity_map.insert(acc, next_entity) {
+        Ok(value) -> value
+        Error(error) -> panic as string.inspect(error)
+      }
 
       seed_identity_map_loop(rest, next_map)
     }
@@ -244,7 +209,9 @@ fn expect_metadata(
   }
 }
 
-fn expect_entity(result: Result(entity.Entity, entity.EntityError)) -> entity.Entity {
+fn expect_entity(
+  result: Result(entity.Entity, entity.EntityError),
+) -> entity.Entity {
   case result {
     Ok(value) -> value
     Error(error) -> panic as string.inspect(error)

@@ -66,11 +66,11 @@ pub fn stage(
     identity_map.upsert(session.tracked, next_entity)
     |> map_identity_error,
   )
-  use persisted <- result_try(
-    stage_persisted(session.persisted, next_entity),
-  )
+  use persisted <- result_try(stage_persisted(session.persisted, next_entity))
 
-  Ok(Session(..session, pending: pending, tracked: tracked, persisted: persisted))
+  Ok(
+    Session(..session, pending: pending, tracked: tracked, persisted: persisted),
+  )
 }
 
 pub fn attach(
@@ -90,18 +90,19 @@ pub fn detach(
   )
   let table = next_entity.metadata.table
 
-  Ok(Session(
-    ..session,
-    pending:
-      unit_of_work.discard_entity_changes(
+  Ok(
+    Session(
+      ..session,
+      pending: unit_of_work.discard_entity_changes(
         session.pending,
         table,
         next_identity,
         next_entity.fields,
       ),
-    tracked: identity_map.remove(session.tracked, table, next_identity),
-    persisted: identity_map.remove(session.persisted, table, next_identity),
-  ))
+      tracked: identity_map.remove(session.tracked, table, next_identity),
+      persisted: identity_map.remove(session.persisted, table, next_identity),
+    ),
+  )
 }
 
 pub fn refresh(
@@ -117,29 +118,32 @@ pub fn refresh(
   case identity_map.get(session.persisted, table, next_identity) {
     option.None -> Error(UnknownTrackedEntity(table, next_identity))
     option.Some(persisted_entity) ->
-      Ok(Session(
-        ..session,
-        pending:
-          unit_of_work.discard_entity_changes(
+      Ok(
+        Session(
+          ..session,
+          pending: unit_of_work.discard_entity_changes(
             session.pending,
             table,
             next_identity,
             next_entity.fields,
           ),
-        tracked:
-          identity_map.upsert(
-            identity_map.remove(session.tracked, table, next_identity),
-            persisted_entity,
-          )
-          |> unwrap_identity_map,
-      ))
+          tracked: identity_map.upsert(
+              identity_map.remove(session.tracked, table, next_identity),
+              persisted_entity,
+            )
+            |> unwrap_identity_map,
+        ),
+      )
   }
 }
 
 pub fn flush(
   session: Session,
   executor: fn(query.Query) -> Result(result, exec_error),
-) -> Result(#(execution.FlushExecution(result), Session), SessionExecutionError(exec_error)) {
+) -> Result(
+  #(execution.FlushExecution(result), Session),
+  SessionExecutionError(exec_error),
+) {
   case execution.execute(session.pending, executor) {
     Error(error) -> Error(ExecutionError(error))
     Ok(#(flush_result, cleared_pending)) -> {
@@ -161,7 +165,10 @@ pub fn flush(
 pub fn commit(
   session: Session,
   executor: fn(query.Query) -> Result(result, exec_error),
-) -> Result(#(execution.FlushExecution(result), Session), SessionExecutionError(exec_error)) {
+) -> Result(
+  #(execution.FlushExecution(result), Session),
+  SessionExecutionError(exec_error),
+) {
   flush(session, executor)
 }
 
@@ -202,7 +209,13 @@ fn stage_persisted(
       case entity.identity(next_entity) {
         Error(error) -> Error(EntityError(error))
         Ok(next_identity) ->
-          case identity_map.get(persisted, next_entity.metadata.table, next_identity) {
+          case
+            identity_map.get(
+              persisted,
+              next_entity.metadata.table,
+              next_identity,
+            )
+          {
             option.Some(_) -> Ok(persisted)
             option.None ->
               identity_map.upsert(persisted, entity.mark_clean(next_entity))
@@ -212,7 +225,9 @@ fn stage_persisted(
   }
 }
 
-fn normalize_tracked(tracked: identity_map.IdentityMap) -> identity_map.IdentityMap {
+fn normalize_tracked(
+  tracked: identity_map.IdentityMap,
+) -> identity_map.IdentityMap {
   normalize_entities(identity_map.values(tracked), identity_map.empty())
 }
 
@@ -223,15 +238,14 @@ fn normalize_entities(
   case entities {
     [] -> acc
     [next_entity, ..rest] -> {
-      let next_map =
-        case entity.status(next_entity) {
-          entity.Deleted -> acc
-          _ -> {
-            let assert Ok(updated_map) =
-              identity_map.upsert(acc, entity.mark_clean(next_entity))
-            updated_map
-          }
+      let next_map = case entity.status(next_entity) {
+        entity.Deleted -> acc
+        _ -> {
+          let assert Ok(updated_map) =
+            identity_map.upsert(acc, entity.mark_clean(next_entity))
+          updated_map
         }
+      }
 
       normalize_entities(rest, next_map)
     }

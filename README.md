@@ -71,6 +71,7 @@ The public API is intentionally namespaced by module:
 - `galchemy/orm/entity`: entity materialization, state tracking, and staging into `unit_of_work`;
 - `galchemy/session/execution`: generic flush execution on top of `unit_of_work` planning;
 - `galchemy/session/runtime`: explicit session state with `track`, `attach`, `stage`, `detach`, `refresh`, `flush`, `commit`, and `rollback`;
+- `galchemy/session/cascade`: explicit cascade planning for staged relation graphs;
 - `galchemy/session/transaction`: generic transaction-aware lifecycle over `runtime.Session`;
 - `galchemy/session/postgres`: PostgreSQL transaction helpers on top of `pog.transaction`;
 - `galchemy/session/unit_of_work`: session-style change tracking and ordered flush planning into query AST values;
@@ -420,6 +421,7 @@ The current stable surface includes:
 - entity materialization, state tracking, and staging into `unit_of_work`;
 - generic flush execution over ordered `unit_of_work` plans;
 - explicit session runtime with `track`, `attach`, `stage`, `detach`, `refresh`, `flush`, `commit`, and `rollback`;
+- explicit cascade rules for staged relation graphs;
 - transaction-aware session lifecycle for generic executors and PostgreSQL connections;
 - session-style `unit_of_work` flush planning with dependency-aware insert/delete ordering;
 - eager join planning and lazy follow-up query planning from inferred relations;

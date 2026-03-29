@@ -34,14 +34,12 @@ pub fn materialize(
   case validate_fields(metadata, fields) {
     Error(error) -> Error(error)
     Ok(_) ->
-      Ok(
-        Entity(
-          metadata: metadata,
-          fields: fields,
-          loaded_relations: [],
-          status: Clean,
-        ),
-      )
+      Ok(Entity(
+        metadata: metadata,
+        fields: fields,
+        loaded_relations: [],
+        status: Clean,
+      ))
   }
 }
 
@@ -52,14 +50,12 @@ pub fn new_(
   case validate_fields(metadata, fields) {
     Error(error) -> Error(error)
     Ok(_) ->
-      Ok(
-        Entity(
-          metadata: metadata,
-          fields: fields,
-          loaded_relations: [],
-          status: New,
-        ),
-      )
+      Ok(Entity(
+        metadata: metadata,
+        fields: fields,
+        loaded_relations: [],
+        status: New,
+      ))
   }
 }
 
@@ -114,18 +110,18 @@ pub fn mark_relation_loaded(
 ) -> Result(Entity, EntityError) {
   case metadata.has_relation(entity.metadata, relation_name) {
     False ->
-      Error(
-        UnknownRelation(
-          table: entity.metadata.table,
-          relation_name: relation_name,
-        ),
-      )
+      Error(UnknownRelation(
+        table: entity.metadata.table,
+        relation_name: relation_name,
+      ))
     True ->
       Ok(
         Entity(
           ..entity,
-          loaded_relations:
-            append_unique(entity.loaded_relations, relation_name),
+          loaded_relations: append_unique(
+            entity.loaded_relations,
+            relation_name,
+          ),
         ),
       )
   }
@@ -136,7 +132,12 @@ pub fn relation_loaded(entity: Entity, relation_name: String) -> Bool {
 }
 
 pub fn identity(entity: Entity) -> Result(unit_of_work.Identity, EntityError) {
-  identity_fields(entity.metadata, entity.fields, entity.metadata.identity_columns, [])
+  identity_fields(
+    entity.metadata,
+    entity.fields,
+    entity.metadata.identity_columns,
+    [],
+  )
 }
 
 pub fn stage(
@@ -146,35 +147,29 @@ pub fn stage(
   case entity.status {
     Clean -> Ok(session)
     New ->
-      Ok(
-        unit_of_work.register_new(
-          session,
-          entity.metadata.table,
-          entity.fields,
-        ),
-      )
+      Ok(unit_of_work.register_new(
+        session,
+        entity.metadata.table,
+        entity.fields,
+      ))
     Dirty(changes) -> {
       use next_identity <- result_try(identity(entity))
 
-      Ok(
-        unit_of_work.register_dirty(
-          session,
-          entity.metadata.table,
-          next_identity,
-          changes,
-        ),
-      )
+      Ok(unit_of_work.register_dirty(
+        session,
+        entity.metadata.table,
+        next_identity,
+        changes,
+      ))
     }
     Deleted -> {
       use next_identity <- result_try(identity(entity))
 
-      Ok(
-        unit_of_work.register_deleted(
-          session,
-          entity.metadata.table,
-          next_identity,
-        ),
-      )
+      Ok(unit_of_work.register_deleted(
+        session,
+        entity.metadata.table,
+        next_identity,
+      ))
     }
   }
 }
@@ -197,12 +192,7 @@ fn validate_fields(
       case metadata.has_column(metadata, field_value.column) {
         True -> validate_fields(metadata, rest)
         False ->
-          Error(
-            UnknownColumn(
-              table: metadata.table,
-              column: field_value.column,
-            ),
-          )
+          Error(UnknownColumn(table: metadata.table, column: field_value.column))
       }
     }
   }
@@ -255,12 +245,7 @@ fn identity_fields(
         option.Some(field_value) ->
           identity_fields(metadata, fields, rest, [field_value, ..acc])
         option.None ->
-          Error(
-            MissingIdentityField(
-              table: metadata.table,
-              column: column_name,
-            ),
-          )
+          Error(MissingIdentityField(table: metadata.table, column: column_name))
       }
     }
   }

@@ -48,7 +48,9 @@ pub fn materialize(
 ) -> Result(#(entity.Entity, Materializer), MaterializationError) {
   let RowData(table: table_ref, fields: fields) = row_data
 
-  case mapper_registry.get(materializer.registry, table_ref.schema, table_ref.name) {
+  case
+    mapper_registry.get(materializer.registry, table_ref.schema, table_ref.name)
+  {
     Error(error) -> Error(RegistryError(error))
     Ok(metadata) ->
       case entity.materialize(metadata, fields) {
@@ -57,15 +59,27 @@ pub fn materialize(
           case entity.identity(next_entity) {
             Error(error) -> Error(EntityError(error))
             Ok(next_identity) ->
-              case identity_map.get(materializer.identities, metadata.table, next_identity) {
-                option.Some(existing_entity) -> Ok(#(existing_entity, materializer))
+              case
+                identity_map.get(
+                  materializer.identities,
+                  metadata.table,
+                  next_identity,
+                )
+              {
+                option.Some(existing_entity) ->
+                  Ok(#(existing_entity, materializer))
                 option.None ->
-                  case identity_map.insert(materializer.identities, next_entity) {
+                  case
+                    identity_map.insert(materializer.identities, next_entity)
+                  {
                     Error(error) -> Error(IdentityMapError(error))
                     Ok(next_identities) ->
                       Ok(#(
                         next_entity,
-                        Materializer(..materializer, identities: next_identities),
+                        Materializer(
+                          ..materializer,
+                          identities: next_identities,
+                        ),
                       ))
                   }
               }
@@ -97,9 +111,10 @@ fn materialize_many_loop(
   case rows {
     [] -> Ok(#(list.reverse(acc), materializer))
     [next_row, ..rest] -> {
-      use #(next_entity, next_materializer) <- result_try(
-        materialize(materializer, next_row),
-      )
+      use #(next_entity, next_materializer) <- result_try(materialize(
+        materializer,
+        next_row,
+      ))
 
       materialize_many_loop(next_materializer, rest, [next_entity, ..acc])
     }

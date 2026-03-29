@@ -22,7 +22,10 @@ pub type ExecutionError(exec_error) {
 pub fn execute(
   session: unit_of_work.Session,
   executor: fn(query.Query) -> Result(result, exec_error),
-) -> Result(#(FlushExecution(result), unit_of_work.Session), ExecutionError(exec_error)) {
+) -> Result(
+  #(FlushExecution(result), unit_of_work.Session),
+  ExecutionError(exec_error),
+) {
   use plan <- result_try(
     unit_of_work.flush_plan(session)
     |> map_error(SessionError),
@@ -32,18 +35,12 @@ pub fn execute(
   use deletes <- result_try(execute_queries(plan.deletes, executor, []))
 
   Ok(#(
-    FlushExecution(
-      inserts: inserts,
-      updates: updates,
-      deletes: deletes,
-    ),
+    FlushExecution(inserts: inserts, updates: updates, deletes: deletes),
     cleared_session(session),
   ))
 }
 
-pub fn queries(
-  execution: FlushExecution(result),
-) -> List(ExecutedQuery(result)) {
+pub fn queries(execution: FlushExecution(result)) -> List(ExecutedQuery(result)) {
   execution.inserts
   |> list.append(execution.updates)
   |> list.append(execution.deletes)
@@ -62,11 +59,10 @@ fn execute_queries(
         |> map_error(QueryError),
       )
 
-      execute_queries(
-        rest,
-        executor,
-        [ExecutedQuery(query: next_query, result: next_result), ..acc],
-      )
+      execute_queries(rest, executor, [
+        ExecutedQuery(query: next_query, result: next_result),
+        ..acc
+      ])
     }
   }
 }
@@ -76,10 +72,7 @@ fn cleared_session(session: unit_of_work.Session) -> unit_of_work.Session {
   unit_of_work.new(snapshot)
 }
 
-fn map_error(
-  value: Result(a, e1),
-  mapper: fn(e1) -> e2,
-) -> Result(a, e2) {
+fn map_error(value: Result(a, e1), mapper: fn(e1) -> e2) -> Result(a, e2) {
   case value {
     Ok(inner) -> Ok(inner)
     Error(error) -> Error(mapper(error))

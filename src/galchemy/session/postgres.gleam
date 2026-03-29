@@ -13,11 +13,14 @@ pub type PostgresTransactionError(error) {
 pub fn with_transaction(
   connection: pog.Connection,
   session: runtime.Session,
-  callback: fn(transaction.TransactionSession(pog.Connection)) -> Result(result, error),
+  callback: fn(transaction.TransactionSession(pog.Connection)) ->
+    Result(result, error),
 ) -> Result(result, PostgresTransactionError(error)) {
-  case pog.transaction(connection, fn(tx_connection) {
-    callback(transaction.begin(tx_connection, session))
-  }) {
+  case
+    pog.transaction(connection, fn(tx_connection) {
+      callback(transaction.begin(tx_connection, session))
+    })
+  {
     Ok(result) -> Ok(result)
     Error(error) -> Error(TransactionError(error))
   }

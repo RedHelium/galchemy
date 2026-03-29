@@ -54,14 +54,11 @@ pub fn entity_materialize_and_mark_loaded_test() {
   let posts_metadata = expect_metadata(blog_snapshot(), "public", "posts")
 
   let posts_entity =
-    entity.materialize(
-      posts_metadata,
-      [
-        unit_of_work.field("id", ast_expression.Int(10)),
-        unit_of_work.field("user_id", ast_expression.Int(1)),
-        unit_of_work.field("title", ast_expression.Text("Hello")),
-      ],
-    )
+    entity.materialize(posts_metadata, [
+      unit_of_work.field("id", ast_expression.Int(10)),
+      unit_of_work.field("user_id", ast_expression.Int(1)),
+      unit_of_work.field("title", ast_expression.Text("Hello")),
+    ])
     |> expect_entity
     |> entity.mark_relation_loaded("user")
     |> expect_entity
@@ -73,13 +70,10 @@ pub fn entity_materialize_and_mark_loaded_test() {
 pub fn entity_new_stages_insert_test() {
   let users_metadata = expect_metadata(blog_snapshot(), "public", "users")
   let users_entity =
-    entity.new_(
-      users_metadata,
-      [
-        unit_of_work.field("id", ast_expression.Int(1)),
-        unit_of_work.field("name", ast_expression.Text("Ann")),
-      ],
-    )
+    entity.new_(users_metadata, [
+      unit_of_work.field("id", ast_expression.Int(1)),
+      unit_of_work.field("name", ast_expression.Text("Ann")),
+    ])
     |> expect_entity
 
   let planned =
@@ -93,23 +87,20 @@ pub fn entity_new_stages_insert_test() {
 
   assert planned
     == [
-      #(
-        "INSERT INTO \"public\".\"users\" (\"id\", \"name\") VALUES ($1, $2)",
-        [ast_expression.Int(1), ast_expression.Text("Ann")],
-      ),
+      #("INSERT INTO \"public\".\"users\" (\"id\", \"name\") VALUES ($1, $2)", [
+        ast_expression.Int(1),
+        ast_expression.Text("Ann"),
+      ]),
     ]
 }
 
 pub fn entity_change_stages_update_test() {
   let users_metadata = expect_metadata(blog_snapshot(), "public", "users")
   let users_entity =
-    entity.materialize(
-      users_metadata,
-      [
-        unit_of_work.field("id", ast_expression.Int(1)),
-        unit_of_work.field("name", ast_expression.Text("Ann")),
-      ],
-    )
+    entity.materialize(users_metadata, [
+      unit_of_work.field("id", ast_expression.Int(1)),
+      unit_of_work.field("name", ast_expression.Text("Ann")),
+    ])
     |> expect_entity
     |> entity.change([unit_of_work.field("name", ast_expression.Text("Bob"))])
     |> expect_entity
@@ -135,14 +126,11 @@ pub fn entity_change_stages_update_test() {
 pub fn entity_delete_stages_delete_test() {
   let posts_metadata = expect_metadata(blog_snapshot(), "public", "posts")
   let posts_entity =
-    entity.materialize(
-      posts_metadata,
-      [
-        unit_of_work.field("id", ast_expression.Int(10)),
-        unit_of_work.field("user_id", ast_expression.Int(1)),
-        unit_of_work.field("title", ast_expression.Text("Hello")),
-      ],
-    )
+    entity.materialize(posts_metadata, [
+      unit_of_work.field("id", ast_expression.Int(10)),
+      unit_of_work.field("user_id", ast_expression.Int(1)),
+      unit_of_work.field("title", ast_expression.Text("Hello")),
+    ])
     |> expect_entity
     |> entity.mark_deleted
 
@@ -167,35 +155,28 @@ pub fn entity_delete_stages_delete_test() {
 pub fn entity_rejects_unknown_column_test() {
   let users_metadata = expect_metadata(blog_snapshot(), "public", "users")
 
-  assert entity.materialize(
-    users_metadata,
-    [unit_of_work.field("unknown", ast_expression.Text("x"))],
-  )
-    == Error(
-      entity.UnknownColumn(
-        table: relation.table_ref("public", "users"),
-        column: "unknown",
-      ),
-    )
+  assert entity.materialize(users_metadata, [
+      unit_of_work.field("unknown", ast_expression.Text("x")),
+    ])
+    == Error(entity.UnknownColumn(
+      table: relation.table_ref("public", "users"),
+      column: "unknown",
+    ))
 }
 
 pub fn entity_rejects_change_after_delete_test() {
   let users_metadata = expect_metadata(blog_snapshot(), "public", "users")
   let users_entity =
-    entity.materialize(
-      users_metadata,
-      [
-        unit_of_work.field("id", ast_expression.Int(1)),
-        unit_of_work.field("name", ast_expression.Text("Ann")),
-      ],
-    )
+    entity.materialize(users_metadata, [
+      unit_of_work.field("id", ast_expression.Int(1)),
+      unit_of_work.field("name", ast_expression.Text("Ann")),
+    ])
     |> expect_entity
     |> entity.mark_deleted
 
-  assert entity.change(
-    users_entity,
-    [unit_of_work.field("name", ast_expression.Text("Bob"))],
-  )
+  assert entity.change(users_entity, [
+      unit_of_work.field("name", ast_expression.Text("Bob")),
+    ])
     == Error(entity.DeletedEntity(relation.table_ref("public", "users")))
 }
 
@@ -213,7 +194,9 @@ fn expect_metadata(
   }
 }
 
-fn expect_entity(result: Result(entity.Entity, entity.EntityError)) -> entity.Entity {
+fn expect_entity(
+  result: Result(entity.Entity, entity.EntityError),
+) -> entity.Entity {
   case result {
     Ok(value) -> value
     Error(error) -> {
@@ -253,15 +236,16 @@ fn compiled_queries(
   case queries {
     [] -> []
     [next_query, ..rest] -> {
-      let compiler.CompiledQuery(sql: sql, params: params) =
-        case compiler.compile(next_query) {
-          Ok(compiled) -> compiled
-          Error(error) -> {
-            let message =
-              "Expected compiler output, got: " <> string.inspect(error)
-            panic as message
-          }
+      let compiler.CompiledQuery(sql: sql, params: params) = case
+        compiler.compile(next_query)
+      {
+        Ok(compiled) -> compiled
+        Error(error) -> {
+          let message =
+            "Expected compiler output, got: " <> string.inspect(error)
+          panic as message
         }
+      }
 
       [#(sql, params), ..compiled_queries(rest)]
     }
@@ -296,10 +280,10 @@ fn blog_snapshot() -> model.SchemaSnapshot {
         model.PrimaryKey(name: "posts_pkey", columns: ["id"]),
       ),
       unique_constraints: [
-        model.UniqueConstraint(
-          name: "posts_id_user_id_key",
-          columns: ["id", "user_id"],
-        ),
+        model.UniqueConstraint(name: "posts_id_user_id_key", columns: [
+          "id",
+          "user_id",
+        ]),
       ],
       foreign_keys: [
         model.ForeignKey(

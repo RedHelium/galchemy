@@ -69,11 +69,7 @@ fn from_tables(
     [] -> Ok(registry)
     [table_schema, ..rest] -> {
       let next_mapper =
-        metadata.from_snapshot(
-          snapshot,
-          table_schema.schema,
-          table_schema.name,
-        )
+        metadata.from_snapshot(snapshot, table_schema.schema, table_schema.name)
 
       case next_mapper {
         Error(error) -> Error(MetadataError(error))
