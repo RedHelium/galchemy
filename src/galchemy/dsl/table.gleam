@@ -1,5 +1,7 @@
 import galchemy/ast/schema.{type Table}
 import gleam/option
+import gleam/time/calendar.{type Date, type TimeOfDay}
+import gleam/time/timestamp.{type Timestamp}
 
 // Creates a table reference without an alias.
 pub fn table(name: String) -> Table {
@@ -33,5 +35,25 @@ pub fn text(table: Table, name: String) -> schema.Column(String) {
 
 // Creates a typed boolean column reference.
 pub fn bool(table: Table, name: String) -> schema.Column(Bool) {
+  schema.Column(meta: schema.ColumnMeta(table: table, name: name))
+}
+
+// Creates a typed float column reference.
+pub fn float(table: Table, name: String) -> schema.Column(Float) {
+  schema.Column(meta: schema.ColumnMeta(table: table, name: name))
+}
+
+// Creates a typed timestamp column reference.
+pub fn timestamp(table: Table, name: String) -> schema.Column(Timestamp) {
+  schema.Column(meta: schema.ColumnMeta(table: table, name: name))
+}
+
+// Creates a typed date column reference.
+pub fn date(table: Table, name: String) -> schema.Column(Date) {
+  schema.Column(meta: schema.ColumnMeta(table: table, name: name))
+}
+
+// Creates a typed time-of-day column reference.
+pub fn time_of_day(table: Table, name: String) -> schema.Column(TimeOfDay) {
   schema.Column(meta: schema.ColumnMeta(table: table, name: name))
 }
