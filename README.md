@@ -5,13 +5,13 @@
 
 `galchemy` is a PostgreSQL-first SQL query builder core for Gleam.
 
-It is designed around a small set of explicit ideas:
+It is built around a small set of explicit ideas:
 
 - immutable builders;
 - an explicit SQL AST;
 - predictable compilation into `SQL + params`;
 - direct integration with `pog`;
-- no ORM behaviour in `1.0`.
+- a clear boundary between query construction and query execution.
 
 ## Installation
 
@@ -19,13 +19,13 @@ It is designed around a small set of explicit ideas:
 gleam add galchemy
 ```
 
-## Positioning
+## What It Is
 
 `galchemy` is a query builder core, not an ORM.
 
 It helps you:
 
-- describe queries with typed schema references;
+- describe tables and columns with typed schema references;
 - build `select`, `insert`, `update`, and `delete` queries immutably;
 - compile queries into SQL with positional parameters;
 - execute compiled queries through `pog`.
@@ -43,7 +43,7 @@ It does not try to manage:
 
 The public API is intentionally namespaced by module:
 
-- `galchemy/dsl/table`: tables, columns, table aliases;
+- `galchemy/dsl/table`: tables, columns, schemas, aliases;
 - `galchemy/dsl/expr`: SQL expressions and `SelectItem`;
 - `galchemy/dsl/predicate`: predicates for `where` and `join on`;
 - `galchemy/dsl/select`: `select` query builder;
@@ -54,36 +54,36 @@ The public API is intentionally namespaced by module:
 - `galchemy/sql/postgres`: PostgreSQL runtime adapter on top of `pog`;
 - `galchemy`: top-level facade for `compile`, `compile_to_query`, `execute`, and `execute_with_decoder`.
 
-### Naming conventions
+### Naming
 
-The `1.0` naming is fixed as follows:
+The public naming scheme is intentionally fixed:
 
 - SQL-like builder names stay SQL-like: `select`, `from`, `insert_into`, `update`, `delete_from`, `returning`;
-- names that conflict with Gleam or would be awkward at the call site use a trailing underscore: `as_`, `where_`;
+- names that would conflict with Gleam or read awkwardly use a trailing underscore: `as_`, `where_`;
 - join functions are explicit by join kind: `inner_join`, `left_join`;
-- expression helpers stay short and direct: `col`, `item`, `text`, `int`, `float`, `bool`, `timestamp`, `date`, `time_of_day`, `null`.
+- expression helpers stay short and direct: `col`, `item`, `text`, `int`, `float`, `bool`, `timestamp`, `date`, `time_of_day`, `null`;
+- aggregate and function helpers build on top of expression composition: `count`, `count_all`, `sum`, `avg`, `min`, `max`, `lower`, `upper`, `coalesce`.
 
 ## Architecture
 
-The runtime split is intentional:
+The runtime split is deliberate:
 
 - `galchemy/sql/compiler` is the general compiler layer that turns AST values into `CompiledQuery`;
 - `galchemy/sql/postgres` is the PostgreSQL adapter layer that turns `CompiledQuery` and `SqlValue` into `pog.Query`, `pog.Value`, and execution calls.
 
-This keeps SQL compilation separate from PostgreSQL execution concerns.
+This keeps SQL compilation separate from PostgreSQL runtime concerns.
 
-## Identifier policy
+## Identifier Strategy
 
-The identifier policy for `1.0` is intentionally strict:
+As of `1.5`, `galchemy` uses automatic identifier quoting:
 
-- `galchemy` does not automatically quote or escape identifiers;
-- table names, column names, and aliases are emitted exactly as provided;
-- if you need quoted identifiers, pass them explicitly in the schema DSL;
-- for `1.0`, the recommended style is simple PostgreSQL-compatible `snake_case` names.
+- table names, schema names, column names, and aliases are always emitted as quoted identifiers;
+- embedded double quotes are escaped by doubling them;
+- SQL function names are not quoted and are validated separately from identifiers.
 
-This behaviour is part of the public contract.
+This gives the library a predictable PostgreSQL-safe rendering strategy for identifiers while keeping function calls readable.
 
-## Quick start
+## Quick Start
 
 ```gleam
 import galchemy
@@ -110,9 +110,11 @@ pub fn build_query() {
 }
 ```
 
-## CRUD example
+## Real Scenarios
 
-A full CRUD example is available in [src/galchemy/examples/crud.gleam](C:/Users/denbr/OneDrive/Документы/SOFT PROJECTS/Gleam/galchemy/src/galchemy/examples/crud.gleam).
+### CRUD
+
+A full CRUD example is available in [`src/galchemy/examples/crud.gleam`](./src/galchemy/examples/crud.gleam).
 
 ```gleam
 import galchemy
@@ -160,9 +162,9 @@ pub fn build_crud_queries() {
 }
 ```
 
-## Join example
+### Joined Read Model
 
-A dedicated join example is available in [src/galchemy/examples/join_example.gleam](C:/Users/denbr/OneDrive/Документы/SOFT PROJECTS/Gleam/galchemy/src/galchemy/examples/join_example.gleam).
+A dedicated join example is available in [`src/galchemy/examples/join_example.gleam`](./src/galchemy/examples/join_example.gleam).
 
 ```gleam
 import galchemy
@@ -194,9 +196,9 @@ pub fn build_query() {
 }
 ```
 
-## Returning example
+### `RETURNING`
 
-A dedicated `returning` example is available in [src/galchemy/examples/returning_example.gleam](C:/Users/denbr/OneDrive/Документы/SOFT PROJECTS/Gleam/galchemy/src/galchemy/examples/returning_example.gleam).
+A dedicated `returning` example is available in [`src/galchemy/examples/returning_example.gleam`](./src/galchemy/examples/returning_example.gleam).
 
 ```gleam
 import galchemy
@@ -221,7 +223,122 @@ pub fn build_insert() {
 }
 ```
 
-## Supported value literals
+### Reporting Query With `group_by` / `having`
+
+```gleam
+import galchemy
+import galchemy/ast/query
+import galchemy/dsl/expr
+import galchemy/dsl/predicate
+import galchemy/dsl/select
+import galchemy/dsl/table
+
+pub fn active_user_report() {
+  let users = table.as_(table.table("users"), "u")
+  let active = table.bool(users, "active")
+  let id = table.int(users, "id")
+
+  select.select([
+    expr.item(expr.col(active)),
+    expr.as_(expr.count(expr.col(id)), "user_count"),
+  ])
+  |> select.from(users)
+  |> select.group_by(expr.col(active))
+  |> select.having(predicate.gt(expr.count(expr.col(id)), expr.int(1)))
+  |> query.Select
+  |> galchemy.compile
+}
+```
+
+### Batch Insert
+
+```gleam
+import galchemy
+import galchemy/ast/query
+import galchemy/dsl/expr
+import galchemy/dsl/insert
+import galchemy/dsl/table
+
+pub fn batch_insert() {
+  let users = table.table("users")
+  let id = table.int(users, "id")
+  let name = table.text(users, "name")
+
+  insert.insert_into(users)
+  |> insert.values([
+    [
+      insert.field(id, expr.int(1)),
+      insert.field(name, expr.text("Ann")),
+    ],
+    [
+      insert.field(id, expr.int(2)),
+      insert.field(name, expr.text("Bob")),
+    ],
+  ])
+  |> query.Insert
+  |> galchemy.compile
+}
+```
+
+### Schema-Qualified Tables
+
+```gleam
+import galchemy
+import galchemy/ast/query
+import galchemy/dsl/expr
+import galchemy/dsl/select
+import galchemy/dsl/table
+
+pub fn analytics_query() {
+  let users =
+    table.table("users")
+    |> table.in_schema("analytics")
+    |> table.as_("u")
+  let id = table.int(users, "id")
+
+  select.select([expr.item(expr.col(id))])
+  |> select.from(users)
+  |> query.Select
+  |> galchemy.compile
+}
+```
+
+### Executing Through `pog`
+
+```gleam
+import galchemy
+import galchemy/ast/query
+import galchemy/dsl/expr
+import galchemy/dsl/predicate
+import galchemy/dsl/select
+import galchemy/dsl/table
+import gleam/dynamic/decode
+import pog
+
+pub fn run(connection: pog.Connection) {
+  let users = table.as_(table.table("users"), "u")
+  let id = table.int(users, "id")
+  let name = table.text(users, "name")
+
+  let decoder =
+    decode.at([0], decode.int)
+    |> decode.then(fn(id) {
+      decode.at([1], decode.string)
+      |> decode.map(fn(name) { #(id, name) })
+    })
+
+  select.select([
+    expr.item(expr.col(id)),
+    expr.item(expr.col(name)),
+  ])
+  |> select.from(users)
+  |> select.where_(predicate.eq(expr.col(id), expr.int(1)))
+  |> query.Select
+  |> fn(q) { galchemy.execute_with_decoder(q, decoder, connection) }
+}
+```
+
+## Supported Value Literals
 
 `SqlValue` currently supports:
 
@@ -234,17 +351,22 @@ pub fn build_insert() {
 - `TimeOfDay(TimeOfDay)`
 - `Null`
 
-## `1.0` limits
+## Current Feature Set
 
-The first stable release is intentionally limited to:
+The current stable surface includes:
 
-- a PostgreSQL-first workflow;
-- integration through `pog`;
-- explicit AST plus compiler architecture;
 - `select`, `insert`, `update`, `delete`;
-- joins, predicates, ordering, limit, offset, distinct, and returning.
+- `inner_join`, `left_join`;
+- `where`, `order_by`, `limit`, `offset`, `distinct`, `returning`;
+- multi-row inserts;
+- schema-qualified table names;
+- expression helpers and aggregate helpers;
+- `group_by` and `having`;
+- PostgreSQL execution through `pog`.
 
-The following are out of scope for `1.0`:
+## Current Limits
+
+The library still intentionally does not include:
 
 - ORM behaviour;
 - relations API;
@@ -257,8 +379,7 @@ The following are out of scope for `1.0`:
 - CTEs;
 - unions;
 - subqueries;
-- window functions;
-- automatic identifier quoting or escaping.
+- window functions.
 
 ## Development
 

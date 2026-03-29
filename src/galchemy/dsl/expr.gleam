@@ -9,6 +9,17 @@ pub fn col(column: schema.Column(a)) -> expression.Expression {
   expression.ColumnExpr(column.meta)
 }
 
+pub fn star() -> expression.Expression {
+  expression.StarExpr
+}
+
+pub fn call(
+  name: String,
+  arguments: List(expression.Expression),
+) -> expression.Expression {
+  expression.FunctionExpr(name: name, arguments: arguments)
+}
+
 // Wraps an integer literal as a SQL expression.
 pub fn int(value: Int) -> expression.Expression {
   expression.ValueExpr(expression.Int(value))
@@ -42,6 +53,44 @@ pub fn date(value: Date) -> expression.Expression {
 // Wraps a time-of-day literal as a SQL expression.
 pub fn time_of_day(value: TimeOfDay) -> expression.Expression {
   expression.ValueExpr(expression.TimeOfDay(value))
+}
+
+pub fn count(value: expression.Expression) -> expression.Expression {
+  call("COUNT", [value])
+}
+
+pub fn count_all() -> expression.Expression {
+  call("COUNT", [star()])
+}
+
+pub fn sum(value: expression.Expression) -> expression.Expression {
+  call("SUM", [value])
+}
+
+pub fn avg(value: expression.Expression) -> expression.Expression {
+  call("AVG", [value])
+}
+
+pub fn min(value: expression.Expression) -> expression.Expression {
+  call("MIN", [value])
+}
+
+pub fn max(value: expression.Expression) -> expression.Expression {
+  call("MAX", [value])
+}
+
+pub fn lower(value: expression.Expression) -> expression.Expression {
+  call("LOWER", [value])
+}
+
+pub fn upper(value: expression.Expression) -> expression.Expression {
+  call("UPPER", [value])
+}
+
+pub fn coalesce(
+  arguments: List(expression.Expression),
+) -> expression.Expression {
+  call("COALESCE", arguments)
 }
 
 // Creates a SQL NULL expression.

@@ -24,4 +24,6 @@ pub type SqlValue {
 pub type Expression {
   ColumnExpr(ColumnMeta)
   ValueExpr(SqlValue)
+  StarExpr
+  FunctionExpr(name: String, arguments: List(Expression))
 }

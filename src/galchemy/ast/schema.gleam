@@ -2,7 +2,7 @@ import gleam/option.{type Option}
 
 /// Represents a database table reference with an optional SQL alias.
 pub type Table {
-  Table(name: String, alias: Option(String))
+  Table(schema: Option(String), name: String, alias: Option(String))
 }
 
 /// Identifies a concrete column within a specific table reference.

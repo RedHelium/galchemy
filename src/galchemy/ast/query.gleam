@@ -20,6 +20,8 @@ pub type SelectQuery {
     from: Option(Table),
     joins: List(Join),
     where_: Option(Predicate),
+    group_by: List(Expression),
+    having_: Option(Predicate),
     order_by: List(Order),
     limit: Option(Int),
     offset: Option(Int),
@@ -31,7 +33,7 @@ pub type SelectQuery {
 pub type InsertQuery {
   InsertQuery(
     table: Table,
-    values: List(#(ColumnMeta, Expression)),
+    rows: List(List(#(ColumnMeta, Expression))),
     returning: List(SelectItem),
   )
 }

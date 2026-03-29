@@ -14,6 +14,8 @@ pub fn select(items: List(expression.SelectItem)) -> query.SelectQuery {
     from: option.None,
     joins: [],
     where_: option.None,
+    group_by: [],
+    having_: option.None,
     order_by: [],
     limit: option.None,
     offset: option.None,
@@ -52,6 +54,22 @@ pub fn where_(
   predicate: predicate.Predicate,
 ) -> query.SelectQuery {
   query.SelectQuery(..query, where_: option.Some(predicate))
+}
+
+// Appends a GROUP BY expression to the SELECT query.
+pub fn group_by(
+  query: query.SelectQuery,
+  expr: expression.Expression,
+) -> query.SelectQuery {
+  query.SelectQuery(..query, group_by: list.append(query.group_by, [expr]))
+}
+
+// Sets the HAVING clause for the SELECT query.
+pub fn having(
+  query: query.SelectQuery,
+  predicate: predicate.Predicate,
+) -> query.SelectQuery {
+  query.SelectQuery(..query, having_: option.Some(predicate))
 }
 
 // Creates an ascending ORDER BY item.

@@ -5,7 +5,9 @@ import galchemy/ast/predicate
 import galchemy/ast/query
 import galchemy/ast/schema
 import gleam/int
+import gleam/list
 import gleam/option
+import gleam/string
 
 /// Represents a compiled SQL statement and its positional parameters.
 pub type CompiledQuery {
@@ -18,9 +20,11 @@ pub type CompileError {
   EmptyInList
   EmptyInsertValues
   EmptyUpdateAssignments
+  InconsistentInsertRowShape
+  HavingWithoutGroupBy
+  InvalidFunctionName(String)
   InvalidLimit(Int)
   InvalidOffset(Int)
-  Unsupported(String)
 }
 
 /// Carries mutable compilation state in an immutable way.
@@ -65,6 +69,8 @@ pub fn compile_select(
     from: from,
     joins: joins,
     where_: where_,
+    group_by: group_by,
+    having_: having_,
     order_by: order_by,
     limit: limit,
     offset: offset,
@@ -79,7 +85,13 @@ pub fn compile_select(
       use #(items_sql, state1) <- result_try(compile_select_items(items, state0))
       use #(joins_sql, state2) <- result_try(compile_joins(joins, state1))
       use #(where_sql, state3) <- result_try(compile_where(where_, state2))
-      use #(order_sql, state4) <- result_try(compile_order_by(order_by, state3))
+      use #(group_by_sql, state4) <- result_try(compile_group_by(group_by, state3))
+      use #(having_sql, state5) <- result_try(compile_having(
+        group_by,
+        having_,
+        state4,
+      ))
+      use #(order_sql, state6) <- result_try(compile_order_by(order_by, state5))
       use limit_sql <- result_try(compile_limit(limit))
       use offset_sql <- result_try(compile_offset(offset))
 
@@ -96,11 +108,13 @@ pub fn compile_select(
         <> compile_table_ref(table)
         <> joins_sql
         <> where_sql
+        <> group_by_sql
+        <> having_sql
         <> order_sql
         <> limit_sql
         <> offset_sql
 
-      Ok(finalize(sql, state4))
+      Ok(finalize(sql, state6))
     }
   }
 }
@@ -109,11 +123,11 @@ pub fn compile_select(
 pub fn compile_insert(
   q: query.InsertQuery,
 ) -> Result(CompiledQuery, CompileError) {
-  let query.InsertQuery(table: table, values: values, returning: returning) = q
+  let query.InsertQuery(table: table, rows: rows, returning: returning) = q
   let state0 = new_state()
 
-  use #(columns_sql, values_sql, state1) <- result_try(compile_insert_values(
-    values,
+  use #(columns_sql, rows_sql, state1) <- result_try(compile_insert_rows(
+    rows,
     state0,
   ))
   use #(returning_sql, state2) <- result_try(compile_returning(
@@ -126,9 +140,8 @@ pub fn compile_insert(
     <> compile_table_ref(table)
     <> " ("
     <> columns_sql
-    <> ") VALUES ("
-    <> values_sql
-    <> ")"
+    <> ") VALUES "
+    <> rows_sql
     <> returning_sql
 
   Ok(finalize(sql, state2))
@@ -225,41 +238,96 @@ fn compile_select_item(
   Ok(#(sql, state1))
 }
 
-/// Compiles a list of insert pairs into `(columns_sql, values_sql)`.
-fn compile_insert_values(
-  values: List(#(schema.ColumnMeta, expression.Expression)),
+fn compile_insert_rows(
+  rows: List(List(#(schema.ColumnMeta, expression.Expression))),
   state: CompileState,
 ) -> Result(#(String, String, CompileState), CompileError) {
-  case values {
+  case rows {
     [] -> Error(EmptyInsertValues)
-    _ -> compile_insert_values_loop(values, [], [], state)
+    [first_row, ..rest_rows] -> {
+      case first_row {
+        [] -> Error(EmptyInsertValues)
+        _ -> {
+          use #(columns_sql, first_row_sql, state1) <- result_try(
+            compile_insert_row(first_row, state),
+          )
+          use #(rest_rows_sql, state2) <- result_try(compile_insert_rows_loop(
+            rest_rows,
+            first_row,
+            [first_row_sql],
+            state1,
+          ))
+          Ok(#(columns_sql, join_strings(rest_rows_sql, ", "), state2))
+        }
+      }
+    }
   }
 }
 
-/// Recursively compiles insert pairs.
-fn compile_insert_values_loop(
-  values: List(#(schema.ColumnMeta, expression.Expression)),
+fn compile_insert_rows_loop(
+  rows: List(List(#(schema.ColumnMeta, expression.Expression))),
+  first_row: List(#(schema.ColumnMeta, expression.Expression)),
+  acc: List(String),
+  state: CompileState,
+) -> Result(#(List(String), CompileState), CompileError) {
+  case rows {
+    [] -> Ok(#(acc, state))
+    [row, ..rest] -> {
+      case same_insert_shape(first_row, row) {
+        False -> Error(InconsistentInsertRowShape)
+        True -> {
+          use #(_, row_sql, next_state) <- result_try(compile_insert_row(
+            row,
+            state,
+          ))
+          compile_insert_rows_loop(rest, first_row, list.append(acc, [row_sql]), next_state)
+        }
+      }
+    }
+  }
+}
+
+fn compile_insert_row(
+  row: List(#(schema.ColumnMeta, expression.Expression)),
+  state: CompileState,
+) -> Result(#(String, String, CompileState), CompileError) {
+  compile_insert_row_loop(row, [], [], state)
+}
+
+fn compile_insert_row_loop(
+  row: List(#(schema.ColumnMeta, expression.Expression)),
   columns_acc: List(String),
   values_acc: List(String),
   state: CompileState,
 ) -> Result(#(String, String, CompileState), CompileError) {
-  case values {
+  case row {
     [] -> {
       let columns_sql = join_strings(reverse(columns_acc), ", ")
       let values_sql = join_strings(reverse(values_acc), ", ")
-      Ok(#(columns_sql, values_sql, state))
+      Ok(#(columns_sql, "(" <> values_sql <> ")", state))
     }
-
     [#(column, expr), ..rest] -> {
       use #(expr_sql, next_state) <- result_try(compile_expression(expr, state))
       let column_sql = compile_column_name(column)
-      compile_insert_values_loop(
+      compile_insert_row_loop(
         rest,
         [column_sql, ..columns_acc],
         [expr_sql, ..values_acc],
         next_state,
       )
     }
+  }
+}
+
+fn same_insert_shape(
+  one: List(#(schema.ColumnMeta, expression.Expression)),
+  other: List(#(schema.ColumnMeta, expression.Expression)),
+) -> Bool {
+  case one, other {
+    [], [] -> True
+    [#(left_column, _), ..left_rest], [#(right_column, _), ..right_rest] ->
+      left_column == right_column && same_insert_shape(left_rest, right_rest)
+    _, _ -> False
   }
 }
 
@@ -316,6 +384,15 @@ fn compile_expression(
   case expr {
     expression.ColumnExpr(meta) -> Ok(#(compile_column_ref(meta), state))
     expression.ValueExpr(expression.Null) -> Ok(#("NULL", state))
+    expression.StarExpr -> Ok(#("*", state))
+    expression.FunctionExpr(name: name, arguments: arguments) -> {
+      use function_name <- result_try(compile_function_name(name))
+      use #(arguments_sql, next_state) <- result_try(compile_expression_list(
+        arguments,
+        state,
+      ))
+      Ok(#(function_name <> "(" <> arguments_sql <> ")", next_state))
+    }
     expression.ValueExpr(value) -> {
       let #(placeholder, next_state) = push_param(value, state)
       Ok(#(placeholder, next_state))
@@ -385,6 +462,46 @@ fn compile_where(
     option.Some(pred) -> {
       use #(pred_sql, next_state) <- result_try(compile_predicate(pred, state))
       Ok(#(" WHERE " <> pred_sql, next_state))
+    }
+  }
+}
+
+/// Compiles the GROUP BY clause.
+fn compile_group_by(
+  group_by: List(expression.Expression),
+  state: CompileState,
+) -> Result(#(String, CompileState), CompileError) {
+  case group_by {
+    [] -> Ok(#("", state))
+    _ -> {
+      use #(items_sql, next_state) <- result_try(compile_expression_list(
+        group_by,
+        state,
+      ))
+      Ok(#(" GROUP BY " <> items_sql, next_state))
+    }
+  }
+}
+
+/// Compiles the HAVING clause and validates that it is used together with GROUP BY.
+fn compile_having(
+  group_by: List(expression.Expression),
+  having_: option.Option(predicate.Predicate),
+  state: CompileState,
+) -> Result(#(String, CompileState), CompileError) {
+  case having_ {
+    option.None -> Ok(#("", state))
+    option.Some(pred) -> {
+      case list.is_empty(group_by) {
+        True -> Error(HavingWithoutGroupBy)
+        False -> {
+          use #(pred_sql, next_state) <- result_try(compile_predicate(
+            pred,
+            state,
+          ))
+          Ok(#(" HAVING " <> pred_sql, next_state))
+        }
+      }
     }
   }
 }
@@ -564,20 +681,31 @@ fn compile_offset(offset: option.Option(Int)) -> Result(String, CompileError) {
 
 /// Compiles table reference with optional alias.
 fn compile_table_ref(table: schema.Table) -> String {
-  let schema.Table(name: name, alias: alias) = table
-  case alias {
+  let schema.Table(schema: schema_name, name: name, alias: alias) = table
+  let qualified_name = case schema_name {
     option.None -> compile_identifier(name)
-    option.Some(a) ->
-      compile_identifier(name) <> " AS " <> compile_identifier(a)
+    option.Some(schema_name) ->
+      compile_identifier(schema_name) <> "." <> compile_identifier(name)
+  }
+
+  case alias {
+    option.None -> qualified_name
+    option.Some(a) -> qualified_name <> " AS " <> compile_identifier(a)
   }
 }
 
 /// Compiles fully-qualified column reference using table name or alias.
 fn compile_column_ref(column: schema.ColumnMeta) -> String {
   let schema.ColumnMeta(table: table, name: column_name) = column
-  let schema.Table(name: table_name, alias: alias) = table
+  let schema.Table(schema: schema_name, name: table_name, alias: alias) = table
   let qualifier = case alias {
-    option.None -> compile_identifier(table_name)
+    option.None -> {
+      case schema_name {
+        option.None -> compile_identifier(table_name)
+        option.Some(schema_name) ->
+          compile_identifier(schema_name) <> "." <> compile_identifier(table_name)
+      }
+    }
     option.Some(a) -> compile_identifier(a)
   }
   qualifier <> "." <> compile_identifier(column_name)
@@ -591,13 +719,20 @@ fn compile_column_name(column: schema.ColumnMeta) -> String {
 
 /// Compiles an SQL identifier.
 ///
-/// Policy for `1.0`:
-/// - identifiers are emitted exactly as provided;
-/// - the compiler does not auto-quote or escape them;
-/// - callers are expected to pass safe PostgreSQL identifiers or already
-///   quoted names when they intentionally need that behaviour.
+/// Policy for `1.5`:
+/// - identifiers are always quoted;
+/// - embedded double quotes are escaped by doubling them.
 fn compile_identifier(identifier: String) -> String {
-  identifier
+  "\""
+  <> string.replace(in: identifier, each: "\"", with: "\"\"")
+  <> "\""
+}
+
+fn compile_function_name(name: String) -> Result(String, CompileError) {
+  case string.is_empty(name) {
+    True -> Error(InvalidFunctionName(name))
+    False -> Ok(name)
+  }
 }
 
 /// Maps comparison operators to SQL text.

@@ -3,7 +3,12 @@ import gleam/option
 
 // Creates a table reference without an alias.
 pub fn table(name: String) -> Table {
-  schema.Table(name: name, alias: option.None)
+  schema.Table(schema: option.None, name: name, alias: option.None)
+}
+
+// Sets the schema name for a table reference.
+pub fn in_schema(table: Table, schema_name: String) -> Table {
+  schema.Table(..table, schema: option.Some(schema_name))
 }
 
 // Replaces the alias value for a table reference.
