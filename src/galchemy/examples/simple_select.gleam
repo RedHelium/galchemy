@@ -13,7 +13,7 @@ import gleam/string
 import pog
 
 pub fn main() -> Nil {
-  let users = table.as_(table.table("public.users"), "u")
+  let users = table.as_(table.table("users"), "u")
   let id = table.int(users, "id")
   let name = table.text(users, "name")
   let active = table.bool(users, "active")
@@ -64,9 +64,9 @@ pub fn main() -> Nil {
 fn start_connection() -> Result(pog.Connection, String) {
   let config =
     pog.default_config(pool_name: process.new_name("galchemy_example_pool"))
-    |> pog.host("127.0.0.1")
+    |> pog.host("localhost")
     |> pog.port(5432)
-    |> pog.database("postgres")
+    |> pog.database("galchemy")
     |> pog.user("postgres")
     |> pog.password(option.Some("123"))
     |> pog.ssl(pog.SslDisabled)

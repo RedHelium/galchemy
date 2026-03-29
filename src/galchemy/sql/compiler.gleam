@@ -219,7 +219,7 @@ fn compile_select_item(
 
   let sql = case alias {
     option.None -> expr_sql
-    option.Some(a) -> expr_sql <> " AS " <> a
+    option.Some(a) -> expr_sql <> " AS " <> compile_identifier(a)
   }
 
   Ok(#(sql, state1))
@@ -566,8 +566,9 @@ fn compile_offset(offset: option.Option(Int)) -> Result(String, CompileError) {
 fn compile_table_ref(table: schema.Table) -> String {
   let schema.Table(name: name, alias: alias) = table
   case alias {
-    option.None -> name
-    option.Some(a) -> name <> " AS " <> a
+    option.None -> compile_identifier(name)
+    option.Some(a) ->
+      compile_identifier(name) <> " AS " <> compile_identifier(a)
   }
 }
 
@@ -576,16 +577,27 @@ fn compile_column_ref(column: schema.ColumnMeta) -> String {
   let schema.ColumnMeta(table: table, name: column_name) = column
   let schema.Table(name: table_name, alias: alias) = table
   let qualifier = case alias {
-    option.None -> table_name
-    option.Some(a) -> a
+    option.None -> compile_identifier(table_name)
+    option.Some(a) -> compile_identifier(a)
   }
-  qualifier <> "." <> column_name
+  qualifier <> "." <> compile_identifier(column_name)
 }
 
 /// Compiles column name for INSERT/UPDATE targets.
 fn compile_column_name(column: schema.ColumnMeta) -> String {
   let schema.ColumnMeta(table: _, name: name) = column
-  name
+  compile_identifier(name)
+}
+
+/// Compiles an SQL identifier.
+///
+/// Policy for `1.0`:
+/// - identifiers are emitted exactly as provided;
+/// - the compiler does not auto-quote or escape them;
+/// - callers are expected to pass safe PostgreSQL identifiers or already
+///   quoted names when they intentionally need that behaviour.
+fn compile_identifier(identifier: String) -> String {
+  identifier
 }
 
 /// Maps comparison operators to SQL text.

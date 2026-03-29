@@ -15,7 +15,11 @@ pub fn to_pog_value(value: expression.SqlValue) -> pog.Value {
   case value {
     expression.Text(v) -> pog.text(v)
     expression.Int(v) -> pog.int(v)
+    expression.Float(v) -> pog.float(v)
     expression.Bool(v) -> pog.bool(v)
+    expression.Timestamp(v) -> pog.timestamp(v)
+    expression.Date(v) -> pog.calendar_date(v)
+    expression.TimeOfDay(v) -> pog.calendar_time_of_day(v)
     expression.Null -> pog.null()
   }
 }

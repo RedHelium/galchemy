@@ -1,5 +1,7 @@
 import galchemy/ast/schema.{type ColumnMeta}
 import gleam/option.{type Option}
+import gleam/time/calendar.{type Date, type TimeOfDay}
+import gleam/time/timestamp.{type Timestamp}
 
 /// Represents a projected expression in a SELECT list, optionally aliased.
 pub type SelectItem {
@@ -10,7 +12,11 @@ pub type SelectItem {
 pub type SqlValue {
   Text(String)
   Int(Int)
+  Float(Float)
   Bool(Bool)
+  Timestamp(Timestamp)
+  Date(Date)
+  TimeOfDay(TimeOfDay)
   Null
 }
 

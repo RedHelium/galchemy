@@ -1,6 +1,8 @@
 import galchemy/ast/expression
 import galchemy/ast/schema
 import gleam/option
+import gleam/time/calendar.{type Date, type TimeOfDay}
+import gleam/time/timestamp.{type Timestamp}
 
 // Converts a typed schema column into a generic SQL expression.
 pub fn col(column: schema.Column(a)) -> expression.Expression {
@@ -20,6 +22,26 @@ pub fn text(value: String) -> expression.Expression {
 // Wraps a boolean literal as a SQL expression.
 pub fn bool(value: Bool) -> expression.Expression {
   expression.ValueExpr(expression.Bool(value))
+}
+
+// Wraps a float literal as a SQL expression.
+pub fn float(value: Float) -> expression.Expression {
+  expression.ValueExpr(expression.Float(value))
+}
+
+// Wraps a timestamp literal as a SQL expression.
+pub fn timestamp(value: Timestamp) -> expression.Expression {
+  expression.ValueExpr(expression.Timestamp(value))
+}
+
+// Wraps a calendar date literal as a SQL expression.
+pub fn date(value: Date) -> expression.Expression {
+  expression.ValueExpr(expression.Date(value))
+}
+
+// Wraps a time-of-day literal as a SQL expression.
+pub fn time_of_day(value: TimeOfDay) -> expression.Expression {
+  expression.ValueExpr(expression.TimeOfDay(value))
 }
 
 // Creates a SQL NULL expression.
