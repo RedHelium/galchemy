@@ -26,7 +26,12 @@ pub fn compile_operation(
     diff.CreateTable(table) -> compile_create_table(table)
     diff.DropTable(ref) -> Ok(["DROP TABLE " <> compile_table_ref(ref)])
     diff.AddColumn(table: ref, column: column) ->
-      Ok(["ALTER TABLE " <> compile_table_ref(ref) <> " ADD COLUMN " <> compile_column_definition(column)])
+      Ok([
+        "ALTER TABLE "
+        <> compile_table_ref(ref)
+        <> " ADD COLUMN "
+        <> compile_column_definition(column),
+      ])
     diff.DropColumn(table: ref, column_name: column_name) ->
       Ok([
         "ALTER TABLE "
@@ -101,10 +106,12 @@ fn compile_create_table(
   case table.columns {
     [] -> Error(EmptyCreateTableColumns(ref))
     _ -> {
-      use primary_key_sql <- result_try(compile_create_table_primary_key(table.primary_key))
-      use unique_constraints_sql <- result_try(compile_create_table_unique_constraints(
-        table.unique_constraints,
+      use primary_key_sql <- result_try(compile_create_table_primary_key(
+        table.primary_key,
       ))
+      use unique_constraints_sql <- result_try(
+        compile_create_table_unique_constraints(table.unique_constraints),
+      )
       use foreign_keys_sql <- result_try(compile_create_table_foreign_keys(
         table.foreign_keys,
       ))
@@ -226,24 +233,25 @@ fn compile_alter_column(
         False -> [base <> name <> " SET DEFAULT " <> target_default]
       }
     }
-    None, Some(target_default) -> [base <> name <> " SET DEFAULT " <> target_default]
+    None, Some(target_default) -> [
+      base <> name <> " SET DEFAULT " <> target_default,
+    ]
     Some(_), None -> [base <> name <> " DROP DEFAULT"]
   }
 
   let nullability_statements = case current.nullable == target.nullable {
     True -> []
-    False -> case target.nullable {
-      True -> [base <> name <> " DROP NOT NULL"]
-      False -> [base <> name <> " SET NOT NULL"]
-    }
+    False ->
+      case target.nullable {
+        True -> [base <> name <> " DROP NOT NULL"]
+        False -> [base <> name <> " SET NOT NULL"]
+      }
   }
 
-  Ok(
-    list.append(
-      list.append(type_statements, default_statements),
-      nullability_statements,
-    ),
-  )
+  Ok(list.append(
+    list.append(type_statements, default_statements),
+    nullability_statements,
+  ))
 }
 
 fn compile_primary_key_clause(
@@ -341,22 +349,26 @@ fn compile_column_type(column_type: model.ColumnType) -> String {
     model.BigIntType -> "BIGINT"
     model.BooleanType -> "BOOLEAN"
     model.TextType -> "TEXT"
-    model.VarCharType(length) -> case length {
-      Some(length) -> "VARCHAR(" <> int_to_string(length) <> ")"
-      None -> "VARCHAR"
-    }
-    model.TimestampType(with_time_zone) -> case with_time_zone {
-      True -> "TIMESTAMP WITH TIME ZONE"
-      False -> "TIMESTAMP WITHOUT TIME ZONE"
-    }
-    model.TimeType(with_time_zone) -> case with_time_zone {
-      True -> "TIME WITH TIME ZONE"
-      False -> "TIME WITHOUT TIME ZONE"
-    }
+    model.VarCharType(length) ->
+      case length {
+        Some(length) -> "VARCHAR(" <> int_to_string(length) <> ")"
+        None -> "VARCHAR"
+      }
+    model.TimestampType(with_time_zone) ->
+      case with_time_zone {
+        True -> "TIMESTAMP WITH TIME ZONE"
+        False -> "TIMESTAMP WITHOUT TIME ZONE"
+      }
+    model.TimeType(with_time_zone) ->
+      case with_time_zone {
+        True -> "TIME WITH TIME ZONE"
+        False -> "TIME WITHOUT TIME ZONE"
+      }
     model.DateType -> "DATE"
     model.RealType -> "REAL"
     model.DoublePrecisionType -> "DOUBLE PRECISION"
-    model.NumericType(precision, scale) -> compile_numeric_type(precision, scale)
+    model.NumericType(precision, scale) ->
+      compile_numeric_type(precision, scale)
     model.JsonType -> "JSON"
     model.JsonbType -> "JSONB"
     model.UuidType -> "UUID"
@@ -369,7 +381,11 @@ fn compile_column_type(column_type: model.ColumnType) -> String {
 fn compile_numeric_type(precision: Option(Int), scale: Option(Int)) -> String {
   case precision, scale {
     Some(precision), Some(scale) ->
-      "NUMERIC(" <> int_to_string(precision) <> ", " <> int_to_string(scale) <> ")"
+      "NUMERIC("
+      <> int_to_string(precision)
+      <> ", "
+      <> int_to_string(scale)
+      <> ")"
     Some(precision), None -> "NUMERIC(" <> int_to_string(precision) <> ")"
     None, _ -> "NUMERIC"
   }
@@ -392,9 +408,7 @@ fn compile_table_ref(ref: diff.TableRef) -> String {
 }
 
 fn compile_identifier(identifier: String) -> String {
-  "\""
-  <> string.replace(in: identifier, each: "\"", with: "\"\"")
-  <> "\""
+  "\"" <> string.replace(in: identifier, each: "\"", with: "\"\"") <> "\""
 }
 
 fn int_to_string(value: Int) -> String {

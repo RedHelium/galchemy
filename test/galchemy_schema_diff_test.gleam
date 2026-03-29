@@ -10,31 +10,25 @@ pub fn main() -> Nil {
 pub fn schema_diff_create_and_drop_table_test() {
   let current =
     model.SchemaSnapshot(tables: [
-      table_schema(
-        "public",
-        "users",
-        [column("id", model.IntegerType, False, option.None, 1)],
-      ),
+      table_schema("public", "users", [
+        column("id", model.IntegerType, False, option.None, 1),
+      ]),
     ])
 
   let target =
     model.SchemaSnapshot(tables: [
-      table_schema(
-        "public",
-        "accounts",
-        [column("id", model.IntegerType, False, option.None, 1)],
-      ),
+      table_schema("public", "accounts", [
+        column("id", model.IntegerType, False, option.None, 1),
+      ]),
     ])
 
   assert diff.diff(current, target)
     == [
       diff.DropTable(diff.TableRef(schema: "public", name: "users")),
       diff.CreateTable(
-        table_schema(
-          "public",
-          "accounts",
-          [column("id", model.IntegerType, False, option.None, 1)],
-        ),
+        table_schema("public", "accounts", [
+          column("id", model.IntegerType, False, option.None, 1),
+        ]),
       ),
     ]
 }
@@ -42,34 +36,26 @@ pub fn schema_diff_create_and_drop_table_test() {
 pub fn schema_diff_columns_test() {
   let current =
     model.SchemaSnapshot(tables: [
-      table_schema(
-        "public",
-        "users",
-        [
-          column("id", model.IntegerType, False, option.None, 1),
-          column("name", model.TextType, False, option.None, 2),
-          column("age", model.IntegerType, True, option.None, 3),
-        ],
-      ),
+      table_schema("public", "users", [
+        column("id", model.IntegerType, False, option.None, 1),
+        column("name", model.TextType, False, option.None, 2),
+        column("age", model.IntegerType, True, option.None, 3),
+      ]),
     ])
 
   let target =
     model.SchemaSnapshot(tables: [
-      table_schema(
-        "public",
-        "users",
-        [
-          column("id", model.IntegerType, False, option.None, 1),
-          column(
-            "name",
-            model.VarCharType(length: option.Some(255)),
-            False,
-            option.None,
-            2,
-          ),
-          column("email", model.TextType, False, option.None, 3),
-        ],
-      ),
+      table_schema("public", "users", [
+        column("id", model.IntegerType, False, option.None, 1),
+        column(
+          "name",
+          model.VarCharType(length: option.Some(255)),
+          False,
+          option.None,
+          2,
+        ),
+        column("email", model.TextType, False, option.None, 3),
+      ]),
     ])
 
   assert diff.diff(current, target)
@@ -147,10 +133,10 @@ pub fn schema_diff_constraints_and_indexes_test() {
           model.PrimaryKey(name: "users_pk", columns: ["id"]),
         ),
         unique_constraints: [
-          model.UniqueConstraint(
-            name: "users_email_company_key",
-            columns: ["email", "company_id"],
-          ),
+          model.UniqueConstraint(name: "users_email_company_key", columns: [
+            "email",
+            "company_id",
+          ]),
         ],
         foreign_keys: [
           model.ForeignKey(

@@ -17,25 +17,20 @@ pub fn flush_plan_orders_inserts_by_dependency_test() {
 
   let session =
     unit_of_work.new(snapshot)
-    |> unit_of_work.register_new(
-      relation.table_ref("public", "posts"),
-      [
-        unit_of_work.field("id", ast_expression.Int(10)),
-        unit_of_work.field("user_id", ast_expression.Int(1)),
-        unit_of_work.field("title", ast_expression.Text("First post")),
-      ],
-    )
-    |> unit_of_work.register_new(
-      relation.table_ref("public", "users"),
-      [
-        unit_of_work.field("id", ast_expression.Int(1)),
-        unit_of_work.field("name", ast_expression.Text("Ann")),
-      ],
-    )
+    |> unit_of_work.register_new(relation.table_ref("public", "posts"), [
+      unit_of_work.field("id", ast_expression.Int(10)),
+      unit_of_work.field("user_id", ast_expression.Int(1)),
+      unit_of_work.field("title", ast_expression.Text("First post")),
+    ])
+    |> unit_of_work.register_new(relation.table_ref("public", "users"), [
+      unit_of_work.field("id", ast_expression.Int(1)),
+      unit_of_work.field("name", ast_expression.Text("Ann")),
+    ])
 
   case unit_of_work.flush_plan(session) {
     Error(error) -> {
-      let message = "Expected successful flush plan, got: " <> string.inspect(error)
+      let message =
+        "Expected successful flush plan, got: " <> string.inspect(error)
       panic as message
     }
     Ok(plan) -> {
@@ -74,7 +69,8 @@ pub fn flush_plan_orders_deletes_in_reverse_dependency_order_test() {
 
   case unit_of_work.flush_plan(session) {
     Error(error) -> {
-      let message = "Expected successful flush plan, got: " <> string.inspect(error)
+      let message =
+        "Expected successful flush plan, got: " <> string.inspect(error)
       panic as message
     }
     Ok(plan) -> {
@@ -106,7 +102,8 @@ pub fn flush_plan_builds_updates_test() {
 
   case unit_of_work.flush_plan(session) {
     Error(error) -> {
-      let message = "Expected successful flush plan, got: " <> string.inspect(error)
+      let message =
+        "Expected successful flush plan, got: " <> string.inspect(error)
       panic as message
     }
     Ok(plan) -> {
@@ -124,18 +121,15 @@ pub fn flush_plan_builds_updates_test() {
 pub fn flush_plan_rejects_unknown_column_test() {
   let session =
     unit_of_work.new(blog_snapshot())
-    |> unit_of_work.register_new(
-      relation.table_ref("public", "users"),
-      [unit_of_work.field("unknown", ast_expression.Text("oops"))],
-    )
+    |> unit_of_work.register_new(relation.table_ref("public", "users"), [
+      unit_of_work.field("unknown", ast_expression.Text("oops")),
+    ])
 
   assert unit_of_work.flush_plan(session)
-    == Error(
-      unit_of_work.UnknownColumn(
-        table: relation.table_ref("public", "users"),
-        column: "unknown",
-      ),
-    )
+    == Error(unit_of_work.UnknownColumn(
+      table: relation.table_ref("public", "users"),
+      column: "unknown",
+    ))
 }
 
 pub fn flush_plan_rejects_empty_identity_test() {
@@ -156,15 +150,16 @@ fn compiled_queries(
   case queries {
     [] -> []
     [next_query, ..rest] -> {
-      let compiler.CompiledQuery(sql: sql, params: params) =
-        case compiler.compile(next_query) {
-          Ok(compiled) -> compiled
-          Error(error) -> {
-            let message =
-              "Expected successful compiler output: " <> string.inspect(error)
-            panic as message
-          }
+      let compiler.CompiledQuery(sql: sql, params: params) = case
+        compiler.compile(next_query)
+      {
+        Ok(compiled) -> compiled
+        Error(error) -> {
+          let message =
+            "Expected successful compiler output: " <> string.inspect(error)
+          panic as message
         }
+      }
 
       [#(sql, params), ..compiled_queries(rest)]
     }

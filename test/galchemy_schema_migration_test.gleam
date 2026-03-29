@@ -43,7 +43,8 @@ pub fn record_migration_query_test() {
 
   assert query_sql(query)
     == "INSERT INTO \"public\".\"galchemy_schema_migrations\" (\"name\", \"statement_count\") VALUES ($1, $2)"
-  assert query_parameters(query) == [pog.text("20260329_create_users"), pog.int(2)]
+  assert query_parameters(query)
+    == [pog.text("20260329_create_users"), pog.int(2)]
 }
 
 pub fn migration_plan_test() {
@@ -112,12 +113,11 @@ pub fn migration_statuses_test() {
       migration.Pending(pending_plan),
       migration.Applied(
         plan: applied_plan,
-        record:
-          migration.AppliedMigration(
-            name: "20260329_create_users",
-            applied_at: "2026-03-29 18:00:00+00",
-            statement_count: 1,
-          ),
+        record: migration.AppliedMigration(
+          name: "20260329_create_users",
+          applied_at: "2026-03-29 18:00:00+00",
+          statement_count: 1,
+        ),
       ),
     ]
 }

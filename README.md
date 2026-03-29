@@ -35,6 +35,7 @@ It helps you:
 - compile and apply PostgreSQL migration plans.
 - generate Gleam schema modules from PostgreSQL schema snapshots.
 - plan session flushes into ordered `insert` / `update` / `delete` queries.
+- plan eager joins and lazy follow-up queries from relation metadata.
 
 It does not try to manage:
 
@@ -62,6 +63,7 @@ The public API is intentionally namespaced by module:
 - `galchemy/schema/migration/postgres`: PostgreSQL migration planning, status tracking, and application helpers;
 - `galchemy/schema/generator/gleam`: Gleam module generation from schema snapshots;
 - `galchemy/session/unit_of_work`: session-style change tracking and ordered flush planning into query AST values;
+- `galchemy/session/loading`: eager and lazy loading planners on top of relation metadata;
 - `galchemy/sql/compiler`: AST to `SQL + params` compilation, including `compile_with` and compiler config hooks;
 - `galchemy/sql/postgres`: PostgreSQL runtime adapter on top of `pog`;
 - `galchemy`: top-level facade for generic compiler entry points only.
@@ -388,6 +390,7 @@ The current stable surface includes:
 - PostgreSQL migration plans, migration history queries, and transactional apply helpers;
 - Gleam schema module generation from `SchemaSnapshot`, including `relations()` helpers;
 - session-style `unit_of_work` flush planning with dependency-aware insert/delete ordering;
+- eager join planning and lazy follow-up query planning from inferred relations;
 - configurable compiler hooks through `CompilerConfig`;
 - PostgreSQL execution through `pog`.
 
@@ -396,7 +399,6 @@ The current stable surface includes:
 The library still intentionally does not include:
 
 - ORM behaviour;
-- lazy or eager loading;
 - dialect abstraction;
 - arbitrary dialect plugins.
 

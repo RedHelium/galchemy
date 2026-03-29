@@ -72,7 +72,12 @@ pub fn register_new(
   table: relation.TableRef,
   values: List(FieldValue),
 ) -> Session {
-  Session(..session, inserts: list.append(session.inserts, [PendingInsert(table:, values: values)]))
+  Session(
+    ..session,
+    inserts: list.append(session.inserts, [
+      PendingInsert(table:, values: values),
+    ]),
+  )
 }
 
 pub fn register_dirty(
@@ -83,11 +88,9 @@ pub fn register_dirty(
 ) -> Session {
   Session(
     ..session,
-    updates:
-      list.append(
-        session.updates,
-        [PendingUpdate(table:, identity: identity, changes: changes)],
-      ),
+    updates: list.append(session.updates, [
+      PendingUpdate(table:, identity: identity, changes: changes),
+    ]),
   )
 }
 
@@ -98,7 +101,9 @@ pub fn register_deleted(
 ) -> Session {
   Session(
     ..session,
-    deletes: list.append(session.deletes, [PendingDelete(table:, identity: identity)]),
+    deletes: list.append(session.deletes, [
+      PendingDelete(table:, identity: identity),
+    ]),
   )
 }
 
@@ -110,13 +115,11 @@ pub fn flush_plan(session: Session) -> Result(FlushPlan, SessionError) {
   use update_queries <- result_try(build_update_queries(session))
   use delete_queries <- result_try(build_delete_queries(session, delete_order))
 
-  Ok(
-    FlushPlan(
-      inserts: insert_queries,
-      updates: update_queries,
-      deletes: delete_queries,
-    ),
-  )
+  Ok(FlushPlan(
+    inserts: insert_queries,
+    updates: update_queries,
+    deletes: delete_queries,
+  ))
 }
 
 pub fn queries(plan: FlushPlan) -> List(query.Query) {
@@ -129,7 +132,11 @@ fn build_insert_queries(
   session: Session,
   table_order: List(relation.TableRef),
 ) -> Result(List(query.Query), SessionError) {
-  build_insert_queries_loop(order_inserts(session.inserts, table_order), session.snapshot, [])
+  build_insert_queries_loop(
+    order_inserts(session.inserts, table_order),
+    session.snapshot,
+    [],
+  )
 }
 
 fn build_insert_queries_loop(
@@ -146,7 +153,9 @@ fn build_insert_queries_loop(
   }
 }
 
-fn build_update_queries(session: Session) -> Result(List(query.Query), SessionError) {
+fn build_update_queries(
+  session: Session,
+) -> Result(List(query.Query), SessionError) {
   build_update_queries_loop(session.updates, session.snapshot, [])
 }
 
@@ -168,7 +177,11 @@ fn build_delete_queries(
   session: Session,
   table_order: List(relation.TableRef),
 ) -> Result(List(query.Query), SessionError) {
-  build_delete_queries_loop(order_deletes(session.deletes, table_order), session.snapshot, [])
+  build_delete_queries_loop(
+    order_deletes(session.deletes, table_order),
+    session.snapshot,
+    [],
+  )
 }
 
 fn build_delete_queries_loop(
@@ -192,8 +205,15 @@ fn insert_query(
   case insert_change.values {
     [] -> Error(EmptyInsertValues(insert_change.table))
     _ -> {
-      use table_schema <- result_try(find_table_schema(snapshot, insert_change.table))
-      use assignments <- result_try(assignments_for(insert_change.table, table_schema, insert_change.values))
+      use table_schema <- result_try(find_table_schema(
+        snapshot,
+        insert_change.table,
+      ))
+      use assignments <- result_try(assignments_for(
+        insert_change.table,
+        table_schema,
+        insert_change.values,
+      ))
 
       Ok(
         query.Insert(
@@ -215,9 +235,20 @@ fn update_query(
   case update_change.changes {
     [] -> Error(EmptyChanges(update_change.table))
     _ -> {
-      use table_schema <- result_try(find_table_schema(snapshot, update_change.table))
-      use assignments <- result_try(assignments_for(update_change.table, table_schema, update_change.changes))
-      use where_ <- result_try(predicate_for_identity(update_change.table, table_schema, update_change.identity))
+      use table_schema <- result_try(find_table_schema(
+        snapshot,
+        update_change.table,
+      ))
+      use assignments <- result_try(assignments_for(
+        update_change.table,
+        table_schema,
+        update_change.changes,
+      ))
+      use where_ <- result_try(predicate_for_identity(
+        update_change.table,
+        table_schema,
+        update_change.identity,
+      ))
 
       Ok(
         query.Update(
@@ -237,8 +268,15 @@ fn delete_query(
   delete_change: PendingDelete,
   snapshot: model.SchemaSnapshot,
 ) -> Result(query.Query, SessionError) {
-  use table_schema <- result_try(find_table_schema(snapshot, delete_change.table))
-  use where_ <- result_try(predicate_for_identity(delete_change.table, table_schema, delete_change.identity))
+  use table_schema <- result_try(find_table_schema(
+    snapshot,
+    delete_change.table,
+  ))
+  use where_ <- result_try(predicate_for_identity(
+    delete_change.table,
+    table_schema,
+    delete_change.identity,
+  ))
 
   Ok(
     query.Delete(
@@ -259,7 +297,11 @@ fn predicate_for_identity(
   case identity.fields {
     [] -> Error(EmptyIdentity(table))
     [first, ..rest] -> {
-      use first_predicate <- result_try(predicate_for_field(table, table_schema, first))
+      use first_predicate <- result_try(predicate_for_field(
+        table,
+        table_schema,
+        first,
+      ))
       predicate_for_identity_rest(table, table_schema, rest, first_predicate)
     }
   }
@@ -274,7 +316,11 @@ fn predicate_for_identity_rest(
   case fields {
     [] -> Ok(acc)
     [field_value, ..rest] -> {
-      use next_predicate <- result_try(predicate_for_field(table, table_schema, field_value))
+      use next_predicate <- result_try(predicate_for_field(
+        table,
+        table_schema,
+        field_value,
+      ))
       predicate_for_identity_rest(
         table,
         table_schema,
@@ -290,15 +336,17 @@ fn predicate_for_field(
   table_schema: model.TableSchema,
   field_value: FieldValue,
 ) -> Result(expression.Predicate, SessionError) {
-  use column_meta <- result_try(column_meta_for(table, table_schema, field_value.column))
+  use column_meta <- result_try(column_meta_for(
+    table,
+    table_schema,
+    field_value.column,
+  ))
 
-  Ok(
-    expression.Comparison(
-      lhs: expression.ColumnExpr(column_meta),
-      op: expression.Eq,
-      rhs: expression.ValueExpr(field_value.value),
-    ),
-  )
+  Ok(expression.Comparison(
+    lhs: expression.ColumnExpr(column_meta),
+    op: expression.Eq,
+    rhs: expression.ValueExpr(field_value.value),
+  ))
 }
 
 fn assignments_for(
@@ -318,13 +366,15 @@ fn assignments_for_loop(
   case fields {
     [] -> Ok(list.reverse(acc))
     [field_value, ..rest] -> {
-      use column_meta <- result_try(column_meta_for(table, table_schema, field_value.column))
-      assignments_for_loop(
+      use column_meta <- result_try(column_meta_for(
         table,
         table_schema,
-        rest,
-        [#(column_meta, expression.ValueExpr(field_value.value)), ..acc],
-      )
+        field_value.column,
+      ))
+      assignments_for_loop(table, table_schema, rest, [
+        #(column_meta, expression.ValueExpr(field_value.value)),
+        ..acc
+      ])
     }
   }
 }
@@ -369,7 +419,9 @@ fn find_table_schema_in(
   case tables {
     [] -> option.None
     [table_schema, ..rest] -> {
-      case table_schema.schema == table.schema && table_schema.name == table.name {
+      case
+        table_schema.schema == table.schema && table_schema.name == table.name
+      {
         True -> option.Some(table_schema)
         False -> find_table_schema_in(rest, table)
       }
@@ -378,7 +430,11 @@ fn find_table_schema_in(
 }
 
 fn ast_table(table: relation.TableRef) -> schema.Table {
-  schema.Table(schema: option.Some(table.schema), name: table.name, alias: option.None)
+  schema.Table(
+    schema: option.Some(table.schema),
+    name: table.name,
+    alias: option.None,
+  )
 }
 
 fn order_inserts(
@@ -406,18 +462,18 @@ fn order_inserts_for_tables(
       order_inserts_for_tables(
         inserts,
         rest,
-        list.append(acc, list.filter(inserts, keeping: fn(insert_change) {
-          insert_change.table == table_ref
-        })),
+        list.append(
+          acc,
+          list.filter(inserts, keeping: fn(insert_change) {
+            insert_change.table == table_ref
+          }),
+        ),
       )
     }
   }
 }
 
-fn contains_insert(
-  inserts: List(PendingInsert),
-  target: PendingInsert,
-) -> Bool {
+fn contains_insert(inserts: List(PendingInsert), target: PendingInsert) -> Bool {
   case inserts {
     [] -> False
     [insert_change, ..rest] -> {
@@ -454,18 +510,18 @@ fn order_deletes_for_tables(
       order_deletes_for_tables(
         deletes,
         rest,
-        list.append(acc, list.filter(deletes, keeping: fn(delete_change) {
-          delete_change.table == table_ref
-        })),
+        list.append(
+          acc,
+          list.filter(deletes, keeping: fn(delete_change) {
+            delete_change.table == table_ref
+          }),
+        ),
       )
     }
   }
 }
 
-fn contains_delete(
-  deletes: List(PendingDelete),
-  target: PendingDelete,
-) -> Bool {
+fn contains_delete(deletes: List(PendingDelete), target: PendingDelete) -> Bool {
   case deletes {
     [] -> False
     [delete_change, ..rest] -> {
@@ -505,7 +561,12 @@ fn resolve_insert_order(
 
       case ready {
         [] -> list.append(resolved, remaining)
-        _ -> resolve_insert_order(blocked, relations_by_table, list.append(resolved, ready))
+        _ ->
+          resolve_insert_order(
+            blocked,
+            relations_by_table,
+            list.append(resolved, ready),
+          )
       }
     }
   }

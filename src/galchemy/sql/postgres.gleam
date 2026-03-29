@@ -102,7 +102,12 @@ pub fn execute_with(
   decoder: decode.Decoder(row),
   connection: pog.Connection,
 ) -> Result(pog.Returned(row), PostgresError) {
-  execute_with_decoder_config(query, decoder, compiler.default_config(), connection)
+  execute_with_decoder_config(
+    query,
+    decoder,
+    compiler.default_config(),
+    connection,
+  )
 }
 
 pub fn execute_with_decoder_config(

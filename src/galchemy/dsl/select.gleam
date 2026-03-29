@@ -3,9 +3,7 @@ import galchemy/ast/schema
 import gleam/list
 import gleam/option
 
-pub fn select(
-  items: List(expression.SelectItem),
-) -> expression.SelectQuery {
+pub fn select(items: List(expression.SelectItem)) -> expression.SelectQuery {
   expression.SelectQuery(
     ctes: [],
     items: items,
@@ -26,7 +24,10 @@ pub fn from(
   query: expression.SelectQuery,
   table: schema.Table,
 ) -> expression.SelectQuery {
-  expression.SelectQuery(..query, from: option.Some(expression.TableSource(table)))
+  expression.SelectQuery(
+    ..query,
+    from: option.Some(expression.TableSource(table)),
+  )
 }
 
 pub fn from_derived(
@@ -36,7 +37,10 @@ pub fn from_derived(
 ) -> expression.SelectQuery {
   expression.SelectQuery(
     ..query,
-    from: option.Some(expression.DerivedSource(query: derived_query, alias: alias)),
+    from: option.Some(expression.DerivedSource(
+      query: derived_query,
+      alias: alias,
+    )),
   )
 }
 
@@ -123,7 +127,10 @@ pub fn union(
   other: expression.SelectQuery,
 ) -> expression.SelectQuery {
   let operation = expression.SetOperation(kind: expression.Union, query: other)
-  expression.SelectQuery(..query, unions: list.append(query.unions, [operation]))
+  expression.SelectQuery(
+    ..query,
+    unions: list.append(query.unions, [operation]),
+  )
 }
 
 pub fn union_all(
@@ -132,7 +139,10 @@ pub fn union_all(
 ) -> expression.SelectQuery {
   let operation =
     expression.SetOperation(kind: expression.UnionAll, query: other)
-  expression.SelectQuery(..query, unions: list.append(query.unions, [operation]))
+  expression.SelectQuery(
+    ..query,
+    unions: list.append(query.unions, [operation]),
+  )
 }
 
 pub fn group_by(
@@ -161,13 +171,13 @@ pub fn order_by(
   query: expression.SelectQuery,
   item: expression.Order,
 ) -> expression.SelectQuery {
-  expression.SelectQuery(
-    ..query,
-    order_by: list.append(query.order_by, [item]),
-  )
+  expression.SelectQuery(..query, order_by: list.append(query.order_by, [item]))
 }
 
-pub fn limit(query: expression.SelectQuery, value: Int) -> expression.SelectQuery {
+pub fn limit(
+  query: expression.SelectQuery,
+  value: Int,
+) -> expression.SelectQuery {
   expression.SelectQuery(..query, limit: option.Some(value))
 }
 

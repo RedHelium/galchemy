@@ -47,14 +47,13 @@ pub fn generate_table_module_test() {
     )
 
   assert generator.generate_table(
-    table_schema,
-    generator.default_options("app/generated"),
-  )
+      table_schema,
+      generator.default_options("app/generated"),
+    )
     == generator.GeneratedModule(
       module_path: "app/generated/public/users",
       file_path: "src/app/generated/public/users.gleam",
-      source:
-        "import galchemy/dsl/table\n\n"
+      source: "import galchemy/dsl/table\n\n"
         <> "pub fn table_() {\n"
         <> "  table.table(\"users\")\n"
         <> "  |> table.in_schema(\"public\")\n"
@@ -109,14 +108,13 @@ pub fn generate_table_module_with_sanitized_names_test() {
     )
 
   assert generator.generate_table(
-    table_schema,
-    generator.default_options("app.generated"),
-  )
+      table_schema,
+      generator.default_options("app.generated"),
+    )
     == generator.GeneratedModule(
       module_path: "app/generated/crm_core/audit_log",
       file_path: "src/app/generated/crm_core/audit_log.gleam",
-      source:
-        "import galchemy/dsl/table\n\n"
+      source: "import galchemy/dsl/table\n\n"
         <> "pub fn table_() {\n"
         <> "  table.table(\"audit-log\")\n"
         <> "  |> table.in_schema(\"crm-core\")\n"
@@ -167,16 +165,15 @@ pub fn generate_snapshot_without_schema_segment_test() {
     ])
 
   assert generator.generate(
-    snapshot,
-    generator.default_options("my_app/db")
-    |> generator.without_schema_segment,
-  )
+      snapshot,
+      generator.default_options("my_app/db")
+        |> generator.without_schema_segment,
+    )
     == [
       generator.GeneratedModule(
         module_path: "my_app/db/users",
         file_path: "src/my_app/db/users.gleam",
-        source:
-          "import galchemy/dsl/table\n\n"
+        source: "import galchemy/dsl/table\n\n"
           <> "pub fn table_() {\n"
           <> "  table.table(\"users\")\n"
           <> "  |> table.in_schema(\"public\")\n"
@@ -192,8 +189,7 @@ pub fn generate_snapshot_without_schema_segment_test() {
       generator.GeneratedModule(
         module_path: "my_app/db/events",
         file_path: "src/my_app/db/events.gleam",
-        source:
-          "import galchemy/dsl/table\n\n"
+        source: "import galchemy/dsl/table\n\n"
           <> "pub fn table_() {\n"
           <> "  table.table(\"events\")\n"
           <> "  |> table.in_schema(\"analytics\")\n"
@@ -243,13 +239,15 @@ pub fn generate_snapshot_with_relations_test() {
       ),
     ])
 
-  assert generator.generate(snapshot, generator.default_options("app/generated"))
+  assert generator.generate(
+      snapshot,
+      generator.default_options("app/generated"),
+    )
     == [
       generator.GeneratedModule(
         module_path: "app/generated/public/users",
         file_path: "src/app/generated/public/users.gleam",
-        source:
-          "import galchemy/dsl/table\n\n"
+        source: "import galchemy/dsl/table\n\n"
           <> "import galchemy/schema/relation\n\n"
           <> "pub fn table_() {\n"
           <> "  table.table(\"users\")\n"
@@ -278,8 +276,7 @@ pub fn generate_snapshot_with_relations_test() {
       generator.GeneratedModule(
         module_path: "app/generated/public/posts",
         file_path: "src/app/generated/public/posts.gleam",
-        source:
-          "import galchemy/dsl/table\n\n"
+        source: "import galchemy/dsl/table\n\n"
           <> "import galchemy/schema/relation\n\n"
           <> "pub fn table_() {\n"
           <> "  table.table(\"posts\")\n"

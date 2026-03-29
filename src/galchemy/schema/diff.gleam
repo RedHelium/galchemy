@@ -56,11 +56,10 @@ fn diff_removed_tables(
       case find_table(target_tables, table.schema, table.name) {
         Some(_) -> diff_removed_tables(rest, target_tables, acc)
         None ->
-          diff_removed_tables(
-            rest,
-            target_tables,
-            [DropTable(table_ref(table.schema, table.name)), ..acc],
-          )
+          diff_removed_tables(rest, target_tables, [
+            DropTable(table_ref(table.schema, table.name)),
+            ..acc
+          ])
       }
     }
   }
@@ -76,7 +75,8 @@ fn diff_created_tables(
     [table, ..rest] -> {
       case find_table(current_tables, table.schema, table.name) {
         Some(_) -> diff_created_tables(current_tables, rest, acc)
-        None -> diff_created_tables(current_tables, rest, [CreateTable(table), ..acc])
+        None ->
+          diff_created_tables(current_tables, rest, [CreateTable(table), ..acc])
       }
     }
   }
@@ -94,7 +94,11 @@ fn diff_existing_tables(
         None -> diff_existing_tables(rest, target_tables, acc)
         Some(target_table) -> {
           let table_operations = diff_table(current_table, target_table)
-          diff_existing_tables(rest, target_tables, list.append(acc, table_operations))
+          diff_existing_tables(
+            rest,
+            target_tables,
+            list.append(acc, table_operations),
+          )
         }
       }
     }
@@ -110,7 +114,12 @@ fn diff_table(
   let drop_constraint_operations =
     list.append(
       list.append(
-        diff_removed_foreign_keys(ref, current.foreign_keys, target.foreign_keys, []),
+        diff_removed_foreign_keys(
+          ref,
+          current.foreign_keys,
+          target.foreign_keys,
+          [],
+        ),
         diff_removed_unique_constraints(
           ref,
           current.unique_constraints,
@@ -145,7 +154,12 @@ fn diff_table(
         ),
       ),
       list.append(
-        diff_added_foreign_keys(ref, current.foreign_keys, target.foreign_keys, []),
+        diff_added_foreign_keys(
+          ref,
+          current.foreign_keys,
+          target.foreign_keys,
+          [],
+        ),
         diff_added_indexes(ref, current.indexes, target.indexes, []),
       ),
     )
@@ -168,12 +182,10 @@ fn diff_removed_columns(
       case find_column(target_columns, column.name) {
         Some(_) -> diff_removed_columns(ref, rest, target_columns, acc)
         None ->
-          diff_removed_columns(
-            ref,
-            rest,
-            target_columns,
-            [DropColumn(table: ref, column_name: column.name), ..acc],
-          )
+          diff_removed_columns(ref, rest, target_columns, [
+            DropColumn(table: ref, column_name: column.name),
+            ..acc
+          ])
       }
     }
   }
@@ -193,16 +205,15 @@ fn diff_changed_columns(
         Some(target_column) -> {
           let next_acc = case column == target_column {
             True -> acc
-            False ->
-              [
-                AlterColumn(
-                  table: ref,
-                  column_name: column.name,
-                  current: column,
-                  target: target_column,
-                ),
-                ..acc
-              ]
+            False -> [
+              AlterColumn(
+                table: ref,
+                column_name: column.name,
+                current: column,
+                target: target_column,
+              ),
+              ..acc
+            ]
           }
 
           diff_changed_columns(ref, rest, target_columns, next_acc)
@@ -224,12 +235,10 @@ fn diff_added_columns(
       case find_column(current_columns, column.name) {
         Some(_) -> diff_added_columns(ref, current_columns, rest, acc)
         None ->
-          diff_added_columns(
-            ref,
-            current_columns,
-            rest,
-            [AddColumn(table: ref, column: column), ..acc],
-          )
+          diff_added_columns(ref, current_columns, rest, [
+            AddColumn(table: ref, column: column),
+            ..acc
+          ])
       }
     }
   }
@@ -242,13 +251,16 @@ fn diff_primary_key(
 ) -> List(SchemaOperation) {
   case current, target {
     None, None -> []
-    Some(current_primary_key), None ->
-      [DropPrimaryKey(table: ref, primary_key_name: current_primary_key.name)]
+    Some(current_primary_key), None -> [
+      DropPrimaryKey(table: ref, primary_key_name: current_primary_key.name),
+    ]
     None, Some(_) -> []
     Some(current_primary_key), Some(target_primary_key) -> {
       case current_primary_key == target_primary_key {
         True -> []
-        False -> [DropPrimaryKey(table: ref, primary_key_name: current_primary_key.name)]
+        False -> [
+          DropPrimaryKey(table: ref, primary_key_name: current_primary_key.name),
+        ]
       }
     }
   }
@@ -262,8 +274,9 @@ fn diff_primary_key_additions(
   case current, target {
     None, None -> []
     Some(_), None -> []
-    None, Some(target_primary_key) ->
-      [AddPrimaryKey(table: ref, primary_key: target_primary_key)]
+    None, Some(target_primary_key) -> [
+      AddPrimaryKey(table: ref, primary_key: target_primary_key),
+    ]
     Some(current_primary_key), Some(target_primary_key) -> {
       case current_primary_key == target_primary_key {
         True -> []
@@ -286,18 +299,23 @@ fn diff_removed_unique_constraints(
         Some(target_constraint) -> {
           let next_acc = case constraint == target_constraint {
             True -> acc
-            False ->
-              [DropUniqueConstraint(table: ref, constraint_name: constraint.name), ..acc]
+            False -> [
+              DropUniqueConstraint(table: ref, constraint_name: constraint.name),
+              ..acc
+            ]
           }
-          diff_removed_unique_constraints(ref, rest, target_constraints, next_acc)
-        }
-        None ->
           diff_removed_unique_constraints(
             ref,
             rest,
             target_constraints,
-            [DropUniqueConstraint(table: ref, constraint_name: constraint.name), ..acc],
+            next_acc,
           )
+        }
+        None ->
+          diff_removed_unique_constraints(ref, rest, target_constraints, [
+            DropUniqueConstraint(table: ref, constraint_name: constraint.name),
+            ..acc
+          ])
       }
     }
   }
@@ -316,17 +334,23 @@ fn diff_added_unique_constraints(
         Some(current_constraint) -> {
           let next_acc = case current_constraint == constraint {
             True -> acc
-            False -> [AddUniqueConstraint(table: ref, constraint: constraint), ..acc]
+            False -> [
+              AddUniqueConstraint(table: ref, constraint: constraint),
+              ..acc
+            ]
           }
-          diff_added_unique_constraints(ref, current_constraints, rest, next_acc)
-        }
-        None ->
           diff_added_unique_constraints(
             ref,
             current_constraints,
             rest,
-            [AddUniqueConstraint(table: ref, constraint: constraint), ..acc],
+            next_acc,
           )
+        }
+        None ->
+          diff_added_unique_constraints(ref, current_constraints, rest, [
+            AddUniqueConstraint(table: ref, constraint: constraint),
+            ..acc
+          ])
       }
     }
   }
@@ -345,17 +369,18 @@ fn diff_removed_foreign_keys(
         Some(target_foreign_key) -> {
           let next_acc = case foreign_key == target_foreign_key {
             True -> acc
-            False -> [DropForeignKey(table: ref, foreign_key_name: foreign_key.name), ..acc]
+            False -> [
+              DropForeignKey(table: ref, foreign_key_name: foreign_key.name),
+              ..acc
+            ]
           }
           diff_removed_foreign_keys(ref, rest, target_foreign_keys, next_acc)
         }
         None ->
-          diff_removed_foreign_keys(
-            ref,
-            rest,
-            target_foreign_keys,
-            [DropForeignKey(table: ref, foreign_key_name: foreign_key.name), ..acc],
-          )
+          diff_removed_foreign_keys(ref, rest, target_foreign_keys, [
+            DropForeignKey(table: ref, foreign_key_name: foreign_key.name),
+            ..acc
+          ])
       }
     }
   }
@@ -374,17 +399,18 @@ fn diff_added_foreign_keys(
         Some(current_foreign_key) -> {
           let next_acc = case current_foreign_key == foreign_key {
             True -> acc
-            False -> [AddForeignKey(table: ref, foreign_key: foreign_key), ..acc]
+            False -> [
+              AddForeignKey(table: ref, foreign_key: foreign_key),
+              ..acc
+            ]
           }
           diff_added_foreign_keys(ref, current_foreign_keys, rest, next_acc)
         }
         None ->
-          diff_added_foreign_keys(
-            ref,
-            current_foreign_keys,
-            rest,
-            [AddForeignKey(table: ref, foreign_key: foreign_key), ..acc],
-          )
+          diff_added_foreign_keys(ref, current_foreign_keys, rest, [
+            AddForeignKey(table: ref, foreign_key: foreign_key),
+            ..acc
+          ])
       }
     }
   }
@@ -408,12 +434,10 @@ fn diff_removed_indexes(
           diff_removed_indexes(ref, rest, target_indexes, next_acc)
         }
         None ->
-          diff_removed_indexes(
-            ref,
-            rest,
-            target_indexes,
-            [DropIndex(table: ref, index_name: index.name), ..acc],
-          )
+          diff_removed_indexes(ref, rest, target_indexes, [
+            DropIndex(table: ref, index_name: index.name),
+            ..acc
+          ])
       }
     }
   }
@@ -437,12 +461,10 @@ fn diff_added_indexes(
           diff_added_indexes(ref, current_indexes, rest, next_acc)
         }
         None ->
-          diff_added_indexes(
-            ref,
-            current_indexes,
-            rest,
-            [AddIndex(table: ref, index: index), ..acc],
-          )
+          diff_added_indexes(ref, current_indexes, rest, [
+            AddIndex(table: ref, index: index),
+            ..acc
+          ])
       }
     }
   }

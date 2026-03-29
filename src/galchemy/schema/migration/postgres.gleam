@@ -9,6 +9,7 @@ import gleam/string
 import pog
 
 const history_table_schema = "public"
+
 const history_table_name = "galchemy_schema_migrations"
 
 pub type MigrationPlan {
@@ -154,7 +155,7 @@ fn fetch_applied_migration(
   case pog.execute(applied_migration_query(name), on: connection) {
     Ok(pog.Returned(count: 0, rows: _)) -> Ok(option.None)
     Ok(pog.Returned(count: _, rows: [])) -> Ok(option.None)
-    Ok(pog.Returned(count: _, rows: [first, .._])) -> Ok(option.Some(first))
+    Ok(pog.Returned(count: _, rows: [first, ..])) -> Ok(option.Some(first))
     Error(error) -> Error(HistoryQueryError(error))
   }
 }
@@ -167,11 +168,9 @@ fn apply_statements(
     [] -> Ok(Nil)
     [statement, ..rest] -> {
       case
-        execute_unit_query(
-          pog.query(statement),
-          connection,
-          fn(error) { StatementError(statement: statement, error: error) },
-        )
+        execute_unit_query(pog.query(statement), connection, fn(error) {
+          StatementError(statement: statement, error: error)
+        })
       {
         Error(error) -> Error(error)
         Ok(_) -> apply_statements(rest, connection)
@@ -230,9 +229,7 @@ fn compile_history_table_ref() -> String {
 }
 
 fn compile_identifier(identifier: String) -> String {
-  "\""
-  <> string.replace(in: identifier, each: "\"", with: "\"\"")
-  <> "\""
+  "\"" <> string.replace(in: identifier, each: "\"", with: "\"\"") <> "\""
 }
 
 fn reverse(items: List(a)) -> List(a) {

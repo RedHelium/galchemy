@@ -137,12 +137,10 @@ pub fn compile_select_schema_qualified_table_test() {
   let id = table.int(users, "id")
 
   let compiler.CompiledQuery(sql: sql, params: params) =
-    expect_compiled(
-      query.Select(
-        select.select([expr.item(expr.col(id))])
-        |> select.from(users),
-      ),
-    )
+    expect_compiled(query.Select(
+      select.select([expr.item(expr.col(id))])
+      |> select.from(users),
+    ))
 
   assert sql == "SELECT \"app\".\"users\".\"id\" FROM \"app\".\"users\""
   assert params == []
@@ -156,12 +154,10 @@ pub fn compile_select_schema_qualified_table_with_alias_test() {
   let id = table.int(users, "id")
 
   let compiler.CompiledQuery(sql: sql, params: params) =
-    expect_compiled(
-      query.Select(
-        select.select([expr.item(expr.col(id))])
-        |> select.from(users),
-      ),
-    )
+    expect_compiled(query.Select(
+      select.select([expr.item(expr.col(id))])
+      |> select.from(users),
+    ))
 
   assert sql == "SELECT \"u\".\"id\" FROM \"app\".\"users\" AS \"u\""
   assert params == []
@@ -198,20 +194,18 @@ pub fn compile_select_expression_helpers_test() {
   let name = table.text(users, "name")
 
   let compiler.CompiledQuery(sql: sql, params: params) =
-    expect_compiled(
-      query.Select(
-        select.select([
-          expr.as_(expr.count_all(), "total"),
-          expr.as_(expr.lower(expr.col(name)), "normalized_name"),
-          expr.as_(
-            expr.coalesce([expr.col(name), expr.text("unknown")]),
-            "display_name",
-          ),
-          expr.as_(expr.max(expr.col(id)), "max_id"),
-        ])
-        |> select.from(users),
-      ),
-    )
+    expect_compiled(query.Select(
+      select.select([
+        expr.as_(expr.count_all(), "total"),
+        expr.as_(expr.lower(expr.col(name)), "normalized_name"),
+        expr.as_(
+          expr.coalesce([expr.col(name), expr.text("unknown")]),
+          "display_name",
+        ),
+        expr.as_(expr.max(expr.col(id)), "max_id"),
+      ])
+      |> select.from(users),
+    ))
 
   assert sql
     == "SELECT COUNT(*) AS \"total\", LOWER(\"u\".\"name\") AS \"normalized_name\", COALESCE(\"u\".\"name\", $1) AS \"display_name\", MAX(\"u\".\"id\") AS \"max_id\" FROM \"users\" AS \"u\""
@@ -224,22 +218,16 @@ pub fn compile_select_window_function_test() {
   let active = table.bool(users, "active")
 
   let row_number_expr =
-    expr.over(
-      expr.row_number(),
-      [expr.col(active)],
-      [select.asc(expr.col(id))],
-    )
+    expr.over(expr.row_number(), [expr.col(active)], [select.asc(expr.col(id))])
 
   let compiler.CompiledQuery(sql: sql, params: params) =
-    expect_compiled(
-      query.Select(
-        select.select([
-          expr.item(expr.col(id)),
-          expr.as_(row_number_expr, "row_number"),
-        ])
-        |> select.from(users),
-      ),
-    )
+    expect_compiled(query.Select(
+      select.select([
+        expr.item(expr.col(id)),
+        expr.as_(row_number_expr, "row_number"),
+      ])
+      |> select.from(users),
+    ))
 
   assert sql
     == "SELECT \"u\".\"id\", ROW_NUMBER() OVER (PARTITION BY \"u\".\"active\" ORDER BY \"u\".\"id\" ASC) AS \"row_number\" FROM \"users\" AS \"u\""
@@ -252,22 +240,18 @@ pub fn compile_select_window_aggregate_test() {
   let active = table.bool(users, "active")
 
   let running_total_expr =
-    expr.over(
-      expr.sum(expr.col(id)),
-      [expr.col(active)],
-      [select.asc(expr.col(id))],
-    )
+    expr.over(expr.sum(expr.col(id)), [expr.col(active)], [
+      select.asc(expr.col(id)),
+    ])
 
   let compiler.CompiledQuery(sql: sql, params: params) =
-    expect_compiled(
-      query.Select(
-        select.select([
-          expr.item(expr.col(id)),
-          expr.as_(running_total_expr, "running_total"),
-        ])
-        |> select.from(users),
-      ),
-    )
+    expect_compiled(query.Select(
+      select.select([
+        expr.item(expr.col(id)),
+        expr.as_(running_total_expr, "running_total"),
+      ])
+      |> select.from(users),
+    ))
 
   assert sql
     == "SELECT \"u\".\"id\", SUM(\"u\".\"id\") OVER (PARTITION BY \"u\".\"active\" ORDER BY \"u\".\"id\" ASC) AS \"running_total\" FROM \"users\" AS \"u\""
@@ -279,19 +263,17 @@ pub fn compile_select_expression_model_test() {
   let id = users_id()
 
   let compiler.CompiledQuery(sql: sql, params: params) =
-    expect_compiled(
-      query.Select(
-        select.select([
-          expr.as_(
-            expr.concat(expr.lower(expr.col(name)), expr.text("!")),
-            "excited_name",
-          ),
-          expr.as_(expr.add(expr.col(id), expr.int(1)), "next_id"),
-          expr.as_(expr.neg(expr.int(7)), "negated"),
-        ])
-        |> select.from(users_table()),
-      ),
-    )
+    expect_compiled(query.Select(
+      select.select([
+        expr.as_(
+          expr.concat(expr.lower(expr.col(name)), expr.text("!")),
+          "excited_name",
+        ),
+        expr.as_(expr.add(expr.col(id), expr.int(1)), "next_id"),
+        expr.as_(expr.neg(expr.int(7)), "negated"),
+      ])
+      |> select.from(users_table()),
+    ))
 
   assert sql
     == "SELECT (LOWER(\"users\".\"name\") || $1) AS \"excited_name\", (\"users\".\"id\" + $2) AS \"next_id\", (-$3) AS \"negated\" FROM \"users\""
@@ -335,8 +317,8 @@ pub fn compile_with_custom_config_test() {
       },
     )
 
-  let compiler.CompiledQuery(sql: sql, params: params) =
-    case compiler.compile_with(
+  let compiler.CompiledQuery(sql: sql, params: params) = case
+    compiler.compile_with(
       query.Select(
         select.select([
           expr.item(expr.col(id)),
@@ -345,15 +327,15 @@ pub fn compile_with_custom_config_test() {
         |> select.from(users),
       ),
       config,
-    ) {
-      Ok(compiled) -> compiled
-      Error(error) -> {
-        let message =
-          "Expected custom compiler config to succeed: "
-          <> string.inspect(error)
-        panic as message
-      }
+    )
+  {
+    Ok(compiled) -> compiled
+    Error(error) -> {
+      let message =
+        "Expected custom compiler config to succeed: " <> string.inspect(error)
+      panic as message
     }
+  }
 
   assert sql
     == "SELECT [u].[id], LOWER([u].[name]) AS [normalized_name] FROM [users] AS [u]"
@@ -361,24 +343,24 @@ pub fn compile_with_custom_config_test() {
 }
 
 pub fn root_compile_with_test() {
-  let config =
-    galchemy.default_compiler_config()
+  let config = galchemy.default_compiler_config()
 
-  let compiler.CompiledQuery(sql: sql, params: params) =
-    case galchemy.compile_with(
+  let compiler.CompiledQuery(sql: sql, params: params) = case
+    galchemy.compile_with(
       query.Select(
         select.select([expr.item(expr.col(users_id()))])
         |> select.from(users_table()),
       ),
       config,
-    ) {
-      Ok(compiled) -> compiled
-      Error(error) -> {
-        let message =
-          "Expected root compile_with to succeed: " <> string.inspect(error)
-        panic as message
-      }
+    )
+  {
+    Ok(compiled) -> compiled
+    Error(error) -> {
+      let message =
+        "Expected root compile_with to succeed: " <> string.inspect(error)
+      panic as message
     }
+  }
 
   assert sql == "SELECT \"users\".\"id\" FROM \"users\""
   assert params == []
@@ -390,17 +372,15 @@ pub fn compile_select_group_by_having_test() {
   let id = table.int(users, "id")
 
   let compiler.CompiledQuery(sql: sql, params: params) =
-    expect_compiled(
-      query.Select(
-        select.select([
-          expr.item(expr.col(active)),
-          expr.as_(expr.count(expr.col(id)), "user_count"),
-        ])
-        |> select.from(users)
-        |> select.group_by(expr.col(active))
-        |> select.having(predicate.gt(expr.count(expr.col(id)), expr.int(1))),
-      ),
-    )
+    expect_compiled(query.Select(
+      select.select([
+        expr.item(expr.col(active)),
+        expr.as_(expr.count(expr.col(id)), "user_count"),
+      ])
+      |> select.from(users)
+      |> select.group_by(expr.col(active))
+      |> select.having(predicate.gt(expr.count(expr.col(id)), expr.int(1))),
+    ))
 
   assert sql
     == "SELECT \"u\".\"active\", COUNT(\"u\".\"id\") AS \"user_count\" FROM \"users\" AS \"u\" GROUP BY \"u\".\"active\" HAVING (COUNT(\"u\".\"id\") > $1)"
@@ -420,15 +400,13 @@ pub fn compile_select_subquery_in_select_test() {
     |> select.where_(predicate.eq(expr.col(post_user_id), expr.col(user_id)))
 
   let compiler.CompiledQuery(sql: sql, params: params) =
-    expect_compiled(
-      query.Select(
-        select.select([
-          expr.item(expr.col(user_id)),
-          expr.as_(expr.subquery(post_count_query), "post_count"),
-        ])
-        |> select.from(users),
-      ),
-    )
+    expect_compiled(query.Select(
+      select.select([
+        expr.item(expr.col(user_id)),
+        expr.as_(expr.subquery(post_count_query), "post_count"),
+      ])
+      |> select.from(users),
+    ))
 
   assert sql
     == "SELECT \"u\".\"id\", (SELECT COUNT(\"p\".\"id\") FROM \"posts\" AS \"p\" WHERE (\"p\".\"user_id\" = \"u\".\"id\")) AS \"post_count\" FROM \"users\" AS \"u\""
@@ -448,15 +426,14 @@ pub fn compile_select_subquery_in_where_test() {
     |> select.where_(predicate.eq(expr.col(post_published), expr.bool(True)))
 
   let compiler.CompiledQuery(sql: sql, params: params) =
-    expect_compiled(
-      query.Select(
-        select.select([expr.item(expr.col(user_id))])
-        |> select.from(users)
-        |> select.where_(
-          predicate.eq(expr.col(user_id), expr.subquery(latest_published_author_query)),
-        ),
-      ),
-    )
+    expect_compiled(query.Select(
+      select.select([expr.item(expr.col(user_id))])
+      |> select.from(users)
+      |> select.where_(predicate.eq(
+        expr.col(user_id),
+        expr.subquery(latest_published_author_query),
+      )),
+    ))
 
   assert sql
     == "SELECT \"u\".\"id\" FROM \"users\" AS \"u\" WHERE (\"u\".\"id\" = (SELECT MAX(\"p\".\"user_id\") FROM \"posts\" AS \"p\" WHERE (\"p\".\"published\" = $1)))"
@@ -476,15 +453,14 @@ pub fn compile_select_in_subquery_test() {
     |> select.where_(predicate.eq(expr.col(post_published), expr.bool(True)))
 
   let compiler.CompiledQuery(sql: sql, params: params) =
-    expect_compiled(
-      query.Select(
-        select.select([expr.item(expr.col(user_id))])
-        |> select.from(users)
-        |> select.where_(
-          predicate.in_subquery(expr.col(user_id), published_authors_query),
-        ),
-      ),
-    )
+    expect_compiled(query.Select(
+      select.select([expr.item(expr.col(user_id))])
+      |> select.from(users)
+      |> select.where_(predicate.in_subquery(
+        expr.col(user_id),
+        published_authors_query,
+      )),
+    ))
 
   assert sql
     == "SELECT \"u\".\"id\" FROM \"users\" AS \"u\" WHERE (\"u\".\"id\" IN (SELECT \"p\".\"user_id\" FROM \"posts\" AS \"p\" WHERE (\"p\".\"published\" = $1)))"
@@ -504,12 +480,10 @@ pub fn compile_select_from_derived_table_test() {
     |> select.where_(predicate.eq(expr.col(post_published), expr.bool(True)))
 
   let compiler.CompiledQuery(sql: sql, params: params) =
-    expect_compiled(
-      query.Select(
-        select.select([expr.item(expr.col(derived_user_id))])
-        |> select.from_derived(derived_query, "published_posts"),
-      ),
-    )
+    expect_compiled(query.Select(
+      select.select([expr.item(expr.col(derived_user_id))])
+      |> select.from_derived(derived_query, "published_posts"),
+    ))
 
   assert sql
     == "SELECT \"published_posts\".\"user_id\" FROM (SELECT \"p\".\"user_id\" FROM \"posts\" AS \"p\" WHERE (\"p\".\"published\" = $1)) AS \"published_posts\""
@@ -531,20 +505,18 @@ pub fn compile_select_join_derived_table_test() {
     |> select.where_(predicate.eq(expr.col(post_published), expr.bool(True)))
 
   let compiler.CompiledQuery(sql: sql, params: params) =
-    expect_compiled(
-      query.Select(
-        select.select([
-          expr.item(expr.col(user_id)),
-          expr.item(expr.col(derived_user_id)),
-        ])
-        |> select.from(users)
-        |> select.inner_join_derived(
-          derived_query,
-          "published_posts",
-          predicate.eq(expr.col(user_id), expr.col(derived_user_id)),
-        ),
+    expect_compiled(query.Select(
+      select.select([
+        expr.item(expr.col(user_id)),
+        expr.item(expr.col(derived_user_id)),
+      ])
+      |> select.from(users)
+      |> select.inner_join_derived(
+        derived_query,
+        "published_posts",
+        predicate.eq(expr.col(user_id), expr.col(derived_user_id)),
       ),
-    )
+    ))
 
   assert sql
     == "SELECT \"u\".\"id\", \"published_posts\".\"user_id\" FROM \"users\" AS \"u\" INNER JOIN (SELECT \"p\".\"user_id\" FROM \"posts\" AS \"p\" WHERE (\"p\".\"published\" = $1)) AS \"published_posts\" ON (\"u\".\"id\" = \"published_posts\".\"user_id\")"
@@ -568,14 +540,12 @@ pub fn compile_select_cte_test() {
     |> select.where_(predicate.eq(expr.col(user_active), expr.bool(True)))
 
   let compiler.CompiledQuery(sql: sql, params: params) =
-    expect_compiled(
-      query.Select(
-        select.select([expr.item(expr.col(active_user_id))])
-        |> select.with_cte("active_users", active_users_query)
-        |> select.from(active_users)
-        |> select.where_(predicate.gt(expr.col(active_user_id), expr.int(10))),
-      ),
-    )
+    expect_compiled(query.Select(
+      select.select([expr.item(expr.col(active_user_id))])
+      |> select.with_cte("active_users", active_users_query)
+      |> select.from(active_users)
+      |> select.where_(predicate.gt(expr.col(active_user_id), expr.int(10))),
+    ))
 
   assert sql
     == "WITH \"active_users\" AS (SELECT \"u\".\"id\", \"u\".\"name\" FROM \"users\" AS \"u\" WHERE (\"u\".\"active\" = $1)) SELECT \"active_users\".\"id\" FROM \"active_users\" WHERE (\"active_users\".\"id\" > $2)"
@@ -594,9 +564,9 @@ pub fn compile_select_union_test() {
     |> select.where_(predicate.eq(expr.col(users_active()), expr.bool(False)))
 
   let compiler.CompiledQuery(sql: sql, params: params) =
-    expect_compiled(
-      query.Select(active_users_query |> select.union(inactive_users_query)),
-    )
+    expect_compiled(query.Select(
+      active_users_query |> select.union(inactive_users_query),
+    ))
 
   assert sql
     == "SELECT \"users\".\"id\" FROM \"users\" WHERE (\"users\".\"active\" = $1) UNION SELECT \"users\".\"id\" FROM \"users\" WHERE (\"users\".\"active\" = $2)"
@@ -616,9 +586,9 @@ pub fn compile_select_union_all_test() {
     |> select.limit(10)
 
   let compiler.CompiledQuery(sql: sql, params: params) =
-    expect_compiled(
-      query.Select(first_page_query |> select.union_all(second_page_query)),
-    )
+    expect_compiled(query.Select(
+      first_page_query |> select.union_all(second_page_query),
+    ))
 
   assert sql
     == "SELECT \"users\".\"id\" FROM \"users\" LIMIT 10 UNION ALL SELECT \"users\".\"id\" FROM \"users\" LIMIT 10 OFFSET 10"
@@ -784,7 +754,8 @@ pub fn compile_insert_values_batch_test() {
   let compiler.CompiledQuery(sql: sql, params: params) =
     expect_compiled(query.Insert(insert_query))
 
-  assert sql == "INSERT INTO \"users\" (\"id\", \"name\") VALUES ($1, $2), ($3, $4)"
+  assert sql
+    == "INSERT INTO \"users\" (\"id\", \"name\") VALUES ($1, $2), ($3, $4)"
   assert params
     == [
       ast_expression.Int(10),
@@ -868,7 +839,8 @@ pub fn compile_delete_test() {
   let compiler.CompiledQuery(sql: sql, params: params) =
     expect_compiled(query.Delete(delete_query))
 
-  assert sql == "DELETE FROM \"users\" WHERE (\"users\".\"id\" = $1) RETURNING \"users\".\"id\""
+  assert sql
+    == "DELETE FROM \"users\" WHERE (\"users\".\"id\" = $1) RETURNING \"users\".\"id\""
   assert params == [ast_expression.Int(9)]
 }
 
@@ -975,49 +947,42 @@ pub fn to_pog_value_test() {
   assert postgres.to_pog_value(ast_expression.Float(1.5)) == pog.float(1.5)
   assert postgres.to_pog_value(ast_expression.Text("Ann")) == pog.text("Ann")
   assert postgres.to_pog_value(ast_expression.Bool(True)) == pog.bool(True)
-  assert
-    postgres.to_pog_value(
-      ast_expression.Timestamp(
-        timestamp.from_unix_seconds_and_nanoseconds(
-          seconds: 1_700_000_000,
-          nanoseconds: 123_000_000,
-        ),
-      ),
-    )
-    == pog.timestamp(
-      timestamp.from_unix_seconds_and_nanoseconds(
+  assert postgres.to_pog_value(
+      ast_expression.Timestamp(timestamp.from_unix_seconds_and_nanoseconds(
         seconds: 1_700_000_000,
         nanoseconds: 123_000_000,
-      ),
+      )),
     )
-  assert
-    postgres.to_pog_value(
-      ast_expression.Date(
-        calendar.Date(year: 2026, month: calendar.March, day: 29),
-      ),
+    == pog.timestamp(timestamp.from_unix_seconds_and_nanoseconds(
+      seconds: 1_700_000_000,
+      nanoseconds: 123_000_000,
+    ))
+  assert postgres.to_pog_value(
+      ast_expression.Date(calendar.Date(
+        year: 2026,
+        month: calendar.March,
+        day: 29,
+      )),
     )
-    == pog.calendar_date(
-      calendar.Date(year: 2026, month: calendar.March, day: 29),
-    )
-  assert
-    postgres.to_pog_value(
-      ast_expression.TimeOfDay(
-        calendar.TimeOfDay(
-          hours: 12,
-          minutes: 34,
-          seconds: 56,
-          nanoseconds: 123_000_000,
-        ),
-      ),
-    )
-    == pog.calendar_time_of_day(
-      calendar.TimeOfDay(
+    == pog.calendar_date(calendar.Date(
+      year: 2026,
+      month: calendar.March,
+      day: 29,
+    ))
+  assert postgres.to_pog_value(
+      ast_expression.TimeOfDay(calendar.TimeOfDay(
         hours: 12,
         minutes: 34,
         seconds: 56,
         nanoseconds: 123_000_000,
-      ),
+      )),
     )
+    == pog.calendar_time_of_day(calendar.TimeOfDay(
+      hours: 12,
+      minutes: 34,
+      seconds: 56,
+      nanoseconds: 123_000_000,
+    ))
   assert postgres.to_pog_value(ast_expression.Null) == pog.null()
 }
 
@@ -1052,15 +1017,12 @@ pub fn to_query_from_compiled_extended_values_test() {
     )
 
   let compiled =
-    compiler.CompiledQuery(
-      sql: "SELECT $1, $2, $3, $4",
-      params: [
-        ast_expression.Float(1.5),
-        ast_expression.Timestamp(ts),
-        ast_expression.Date(date),
-        ast_expression.TimeOfDay(time),
-      ],
-    )
+    compiler.CompiledQuery(sql: "SELECT $1, $2, $3, $4", params: [
+      ast_expression.Float(1.5),
+      ast_expression.Timestamp(ts),
+      ast_expression.Date(date),
+      ast_expression.TimeOfDay(time),
+    ])
 
   let pog_query = postgres.to_query_from_compiled(compiled)
 

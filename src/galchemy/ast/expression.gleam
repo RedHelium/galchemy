@@ -62,10 +62,7 @@ pub type BinaryOperator {
 }
 
 pub type WindowDefinition {
-  WindowDefinition(
-    partition_by: List(Expression),
-    order_by: List(Order),
-  )
+  WindowDefinition(partition_by: List(Expression), order_by: List(Order))
 }
 
 pub type JoinKind {

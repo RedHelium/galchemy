@@ -156,9 +156,7 @@ pub fn upper(value: expression.Expression) -> expression.Expression {
   call("UPPER", [value])
 }
 
-pub fn coalesce(
-  arguments: List(expression.Expression),
-) -> expression.Expression {
+pub fn coalesce(arguments: List(expression.Expression)) -> expression.Expression {
   call("COALESCE", arguments)
 }
 

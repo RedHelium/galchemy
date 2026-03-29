@@ -76,10 +76,10 @@ fn module_segments(
 
   case options.include_schema_segment {
     True ->
-      list.append(
-        root_segments,
-        [sanitize_identifier(table_schema.schema, "schema"), table_segment],
-      )
+      list.append(root_segments, [
+        sanitize_identifier(table_schema.schema, "schema"),
+        table_segment,
+      ])
 
     False -> list.append(root_segments, [table_segment])
   }
@@ -107,20 +107,16 @@ fn render_module_source(
   table_relations: relation.TableRelations,
 ) -> String {
   let column_blocks = render_column_blocks(table_schema.columns)
-  let imports =
-    case table_relations.relations {
-      [] -> ["import galchemy/dsl/table"]
-      _ -> ["import galchemy/dsl/table", "import galchemy/schema/relation"]
-    }
+  let imports = case table_relations.relations {
+    [] -> ["import galchemy/dsl/table"]
+    _ -> ["import galchemy/dsl/table", "import galchemy/schema/relation"]
+  }
   let relation_blocks = render_relation_blocks(table_relations.relations)
   let base_blocks =
-    list.append(
-      imports,
-      [
-        render_table_function(table_schema),
-        render_alias_function(),
-      ],
-    )
+    list.append(imports, [
+      render_table_function(table_schema),
+      render_alias_function(),
+    ])
 
   string.join(
     list.append(list.append(base_blocks, column_blocks), relation_blocks),
@@ -160,7 +156,14 @@ fn render_column_blocks(columns: List(model.ColumnSchema)) -> List(String) {
       let function_name = next_function_name(column.name, used_names)
 
       #(
-        [render_column_function(function_name, helper_name(column.data_type), column.name), ..blocks],
+        [
+          render_column_function(
+            function_name,
+            helper_name(column.data_type),
+            column.name,
+          ),
+          ..blocks
+        ],
         [function_name, ..used_names],
       )
     })
@@ -168,24 +171,21 @@ fn render_column_blocks(columns: List(model.ColumnSchema)) -> List(String) {
   list.reverse(reversed_blocks)
 }
 
-fn render_relation_blocks(
-  relations: List(relation.Relation),
-) -> List(String) {
+fn render_relation_blocks(relations: List(relation.Relation)) -> List(String) {
   case relations {
     [] -> []
-    _ ->
-      [
-        string.join(
-          [
-            "pub fn relations() {",
-            "  [",
-            render_relation_items(relations),
-            "  ]",
-            "}",
-          ],
-          with: "\n",
-        ),
-      ]
+    _ -> [
+      string.join(
+        [
+          "pub fn relations() {",
+          "  [",
+          render_relation_items(relations),
+          "  ]",
+          "}",
+        ],
+        with: "\n",
+      ),
+    ]
   }
 }
 
@@ -231,8 +231,10 @@ fn render_column_pairs(pairs: List(relation.ColumnPair)) -> String {
       "\n"
       <> string.join(
         list.map(pairs, fn(pair) {
-          let relation.ColumnPair(local_column: local_column, related_column: related_column) =
-            pair
+          let relation.ColumnPair(
+            local_column: local_column,
+            related_column: related_column,
+          ) = pair
 
           "        relation.pair(\""
           <> escape_string(local_column)
@@ -254,7 +256,11 @@ fn render_column_function(
   string.join(
     [
       "pub fn " <> function_name <> "(table_ref) {",
-      "  table." <> helper <> "(table_ref, \"" <> escape_string(column_name) <> "\")",
+      "  table."
+        <> helper
+        <> "(table_ref, \""
+        <> escape_string(column_name)
+        <> "\")",
       "}",
     ],
     with: "\n",
@@ -420,7 +426,7 @@ fn prefix_if_needed(value: String, fallback: String) -> String {
 
 fn starts_with_digit(value: String) -> Bool {
   case string.to_graphemes(value) {
-    [first, .._] -> is_digit(first)
+    [first, ..] -> is_digit(first)
     [] -> False
   }
 }

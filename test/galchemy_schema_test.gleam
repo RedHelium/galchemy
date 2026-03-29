@@ -37,7 +37,8 @@ pub fn compile_schema_indexes_query_test() {
 
   assert sql
     == "SELECT ns.nspname AS table_schema, tbl.relname AS table_name, idx.relname AS index_name, ind.indisunique AS is_unique, pg_get_indexdef(ind.indexrelid) AS index_definition FROM pg_index AS ind INNER JOIN pg_class AS tbl ON tbl.oid = ind.indrelid INNER JOIN pg_namespace AS ns ON ns.oid = tbl.relnamespace INNER JOIN pg_class AS idx ON idx.oid = ind.indexrelid WHERE tbl.relkind = 'r' AND NOT ind.indisprimary AND ns.nspname NOT IN ('pg_catalog', 'information_schema') AND ns.nspname IN ($1, $2) ORDER BY ns.nspname, tbl.relname, idx.relname"
-  assert params == [ast_expression.Text("public"), ast_expression.Text("analytics")]
+  assert params
+    == [ast_expression.Text("public"), ast_expression.Text("analytics")]
 }
 
 pub fn rows_to_snapshot_test() {

@@ -117,7 +117,10 @@ fn compile_select_query(
       use #(from_sql, state3) <- result_try(compile_source(source, state2))
       use #(joins_sql, state4) <- result_try(compile_joins(joins, state3))
       use #(where_sql, state5) <- result_try(compile_where(where_, state4))
-      use #(group_by_sql, state6) <- result_try(compile_group_by(group_by, state5))
+      use #(group_by_sql, state6) <- result_try(compile_group_by(
+        group_by,
+        state5,
+      ))
       use #(having_sql, state7) <- result_try(compile_having(
         group_by,
         having_,
@@ -126,7 +129,10 @@ fn compile_select_query(
       use #(order_sql, state8) <- result_try(compile_order_by(order_by, state7))
       use limit_sql <- result_try(compile_limit(limit))
       use offset_sql <- result_try(compile_offset(offset))
-      use #(unions_sql, state9) <- result_try(compile_set_operations(unions, state8))
+      use #(unions_sql, state9) <- result_try(compile_set_operations(
+        unions,
+        state8,
+      ))
 
       let distinct_sql = case distinct {
         True -> "DISTINCT "
@@ -257,7 +263,11 @@ fn compile_ctes(
   case ctes {
     [] -> Ok(#("", state))
     _ -> {
-      use #(ctes_sql, next_state) <- result_try(compile_ctes_loop(ctes, [], state))
+      use #(ctes_sql, next_state) <- result_try(compile_ctes_loop(
+        ctes,
+        [],
+        state,
+      ))
       Ok(#("WITH " <> ctes_sql <> " ", next_state))
     }
   }
@@ -503,7 +513,8 @@ fn compile_expression(
   state: CompileState,
 ) -> Result(#(String, CompileState), CompileError) {
   case expr {
-    expression.ColumnExpr(meta) -> Ok(#(compile_column_ref(meta, state.config), state))
+    expression.ColumnExpr(meta) ->
+      Ok(#(compile_column_ref(meta, state.config), state))
     expression.ValueExpr(expression.Null) -> Ok(#("NULL", state))
     expression.StarExpr -> Ok(#("*", state))
     expression.FunctionExpr(name: name, arguments: arguments) -> {
@@ -519,18 +530,30 @@ fn compile_expression(
         operand,
         state,
       ))
-      Ok(#("(" <> unary_operator_to_sql(operator) <> operand_sql <> ")", next_state))
+      Ok(#(
+        "(" <> unary_operator_to_sql(operator) <> operand_sql <> ")",
+        next_state,
+      ))
     }
     expression.BinaryOpExpr(lhs: lhs, operator: operator, rhs: rhs) -> {
       use #(lhs_sql, state1) <- result_try(compile_expression(lhs, state))
       use #(rhs_sql, state2) <- result_try(compile_expression(rhs, state1))
       Ok(#(
-        "(" <> lhs_sql <> " " <> binary_operator_to_sql(operator) <> " " <> rhs_sql <> ")",
+        "("
+          <> lhs_sql
+          <> " "
+          <> binary_operator_to_sql(operator)
+          <> " "
+          <> rhs_sql
+          <> ")",
         state2,
       ))
     }
     expression.WindowExpr(function: function, window: window) -> {
-      use #(function_sql, state1) <- result_try(compile_expression(function, state))
+      use #(function_sql, state1) <- result_try(compile_expression(
+        function,
+        state,
+      ))
       use #(window_sql, state2) <- result_try(compile_window_definition(
         window,
         state1,
@@ -625,7 +648,8 @@ fn compile_source(
   state: CompileState,
 ) -> Result(#(String, CompileState), CompileError) {
   case source {
-    expression.TableSource(table) -> Ok(#(compile_table_ref(table, state.config), state))
+    expression.TableSource(table) ->
+      Ok(#(compile_table_ref(table, state.config), state))
     expression.DerivedSource(query: derived_query, alias: alias) -> {
       use #(query_sql, next_state) <- result_try(compile_select_query(
         derived_query,
@@ -912,7 +936,10 @@ fn compile_table_ref(table: schema.Table, config: CompilerConfig) -> String {
   }
 }
 
-fn compile_column_ref(column: schema.ColumnMeta, config: CompilerConfig) -> String {
+fn compile_column_ref(
+  column: schema.ColumnMeta,
+  config: CompilerConfig,
+) -> String {
   let schema.ColumnMeta(table: table, name: column_name) = column
   let schema.Table(schema: schema_name, name: table_name, alias: alias) = table
   let qualifier = case alias {
@@ -930,14 +957,19 @@ fn compile_column_ref(column: schema.ColumnMeta, config: CompilerConfig) -> Stri
   qualifier <> "." <> compile_identifier(column_name, config)
 }
 
-fn compile_column_name(column: schema.ColumnMeta, config: CompilerConfig) -> String {
+fn compile_column_name(
+  column: schema.ColumnMeta,
+  config: CompilerConfig,
+) -> String {
   let schema.ColumnMeta(table: _, name: name) = column
   compile_identifier(name, config)
 }
 
 fn compile_identifier(identifier: String, config: CompilerConfig) -> String {
-  let CompilerConfig(render_identifier: render_identifier, validate_function_name: _) =
-    config
+  let CompilerConfig(
+    render_identifier: render_identifier,
+    validate_function_name: _,
+  ) = config
   render_identifier(identifier)
 }
 
@@ -945,15 +977,15 @@ fn compile_function_name(
   name: String,
   config: CompilerConfig,
 ) -> Result(String, CompileError) {
-  let CompilerConfig(render_identifier: _, validate_function_name: validate_function_name) =
-    config
+  let CompilerConfig(
+    render_identifier: _,
+    validate_function_name: validate_function_name,
+  ) = config
   validate_function_name(name)
 }
 
 fn default_render_identifier(identifier: String) -> String {
-  "\""
-  <> string.replace(in: identifier, each: "\"", with: "\"\"")
-  <> "\""
+  "\"" <> string.replace(in: identifier, each: "\"", with: "\"\"") <> "\""
 }
 
 fn default_validate_function_name(name: String) -> Result(String, CompileError) {

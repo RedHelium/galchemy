@@ -9,10 +9,7 @@ import gleam/option.{type Option, None, Some}
 import pog
 
 pub type IntrospectionOptions {
-  IntrospectionOptions(
-    schemas: List(String),
-    include_system_schemas: Bool,
-  )
+  IntrospectionOptions(schemas: List(String), include_system_schemas: Bool)
 }
 
 pub type ColumnRow {
@@ -108,15 +105,13 @@ pub fn compile_columns_query(
     <> "AND t.table_name = c.table_name "
     <> "WHERE t.table_type = 'BASE TABLE'"
 
-  let system_filter_sql = compile_system_filter(
-    "c.table_schema",
-    include_system_schemas,
-  )
-  let #(schema_filter_sql, params) = compile_schema_filter("c.table_schema", schemas)
+  let system_filter_sql =
+    compile_system_filter("c.table_schema", include_system_schemas)
+  let #(schema_filter_sql, params) =
+    compile_schema_filter("c.table_schema", schemas)
 
   compiler.CompiledQuery(
-    sql:
-      base_sql
+    sql: base_sql
       <> system_filter_sql
       <> schema_filter_sql
       <> " ORDER BY c.table_schema, c.table_name, c.ordinal_position",
@@ -153,16 +148,13 @@ pub fn compile_constraints_query(
     <> "AND kcu.position_in_unique_constraint = ccu.ordinal_position "
     <> "WHERE tc.constraint_type IN ('PRIMARY KEY', 'UNIQUE', 'FOREIGN KEY')"
 
-  let system_filter_sql = compile_system_filter(
-    "tc.table_schema",
-    include_system_schemas,
-  )
+  let system_filter_sql =
+    compile_system_filter("tc.table_schema", include_system_schemas)
   let #(schema_filter_sql, params) =
     compile_schema_filter("tc.table_schema", schemas)
 
   compiler.CompiledQuery(
-    sql:
-      base_sql
+    sql: base_sql
       <> system_filter_sql
       <> schema_filter_sql
       <> " ORDER BY tc.table_schema, tc.table_name, tc.constraint_name, kcu.ordinal_position",
@@ -188,15 +180,13 @@ pub fn compile_indexes_query(
     <> "INNER JOIN pg_class AS idx ON idx.oid = ind.indexrelid "
     <> "WHERE tbl.relkind = 'r' AND NOT ind.indisprimary"
 
-  let system_filter_sql = compile_system_filter(
-    "ns.nspname",
-    include_system_schemas,
-  )
-  let #(schema_filter_sql, params) = compile_schema_filter("ns.nspname", schemas)
+  let system_filter_sql =
+    compile_system_filter("ns.nspname", include_system_schemas)
+  let #(schema_filter_sql, params) =
+    compile_schema_filter("ns.nspname", schemas)
 
   compiler.CompiledQuery(
-    sql:
-      base_sql
+    sql: base_sql
       <> system_filter_sql
       <> schema_filter_sql
       <> " ORDER BY ns.nspname, tbl.relname, idx.relname",
@@ -417,7 +407,8 @@ fn compile_system_filter(
 ) -> String {
   case include_system_schemas {
     True -> ""
-    False -> " AND " <> qualifier <> " NOT IN ('pg_catalog', 'information_schema')"
+    False ->
+      " AND " <> qualifier <> " NOT IN ('pg_catalog', 'information_schema')"
   }
 }
 
@@ -432,7 +423,11 @@ fn compile_schema_filter(
       let params = list.map(schemas, expression.Text)
 
       #(
-        " AND " <> qualifier <> " IN (" <> join_strings(placeholders, ", ") <> ")",
+        " AND "
+          <> qualifier
+          <> " IN ("
+          <> join_strings(placeholders, ", ")
+          <> ")",
         params,
       )
     }
@@ -447,11 +442,10 @@ fn schema_placeholders(
   case schemas {
     [] -> reverse(acc)
     [_, ..rest] ->
-      schema_placeholders(
-        rest,
-        next_index + 1,
-        ["$" <> int.to_string(next_index), ..acc],
-      )
+      schema_placeholders(rest, next_index + 1, [
+        "$" <> int.to_string(next_index),
+        ..acc
+      ])
   }
 }
 
@@ -476,28 +470,26 @@ fn collect_table_rows(
   acc: List(ColumnRow),
 ) -> #(model.TableSchema, List(ColumnRow)) {
   case rows {
-    [] ->
-      #(
-        empty_table(
-          schema_name,
-          table_name,
-          column_rows_to_columns(reverse(acc), []),
-        ),
-        [],
-      )
+    [] -> #(
+      empty_table(
+        schema_name,
+        table_name,
+        column_rows_to_columns(reverse(acc), []),
+      ),
+      [],
+    )
 
     [row, ..rest] -> {
       case row.schema_name == schema_name && row.table_name == table_name {
         True -> collect_table_rows(rest, schema_name, table_name, [row, ..acc])
-        False ->
-          #(
-            empty_table(
-              schema_name,
-              table_name,
-              column_rows_to_columns(reverse(acc), []),
-            ),
-            rows,
-          )
+        False -> #(
+          empty_table(
+            schema_name,
+            table_name,
+            column_rows_to_columns(reverse(acc), []),
+          ),
+          rows,
+        )
       }
     }
   }
@@ -510,19 +502,16 @@ fn column_rows_to_columns(
   case rows {
     [] -> reverse(acc)
     [row, ..rest] ->
-      column_rows_to_columns(
-        rest,
-        [
-          model.ColumnSchema(
-            name: row.column_name,
-            data_type: infer_column_type(row),
-            nullable: row.is_nullable,
-            default: row.column_default,
-            ordinal_position: row.ordinal_position,
-          ),
-          ..acc
-        ],
-      )
+      column_rows_to_columns(rest, [
+        model.ColumnSchema(
+          name: row.column_name,
+          data_type: infer_column_type(row),
+          nullable: row.is_nullable,
+          default: row.column_default,
+          ordinal_position: row.ordinal_position,
+        ),
+        ..acc
+      ])
   }
 }
 
@@ -585,7 +574,7 @@ fn apply_constraint_group(
 ) -> List(model.TableSchema) {
   case rows {
     [] -> tables
-    [first, .._] -> {
+    [first, ..] -> {
       let updater = case first.kind {
         PrimaryKeyConstraint -> add_primary_key(rows)
         UniqueConstraint -> add_unique_constraint(rows)
@@ -603,15 +592,13 @@ fn add_primary_key(
   fn(table_schema) {
     case rows {
       [] -> table_schema
-      [first, .._] ->
+      [first, ..] ->
         model.TableSchema(
           ..table_schema,
-          primary_key: Some(
-            model.PrimaryKey(
-              name: first.constraint_name,
-              columns: constraint_columns(rows, []),
-            ),
-          ),
+          primary_key: Some(model.PrimaryKey(
+            name: first.constraint_name,
+            columns: constraint_columns(rows, []),
+          )),
         )
     }
   }
@@ -623,18 +610,15 @@ fn add_unique_constraint(
   fn(table_schema) {
     case rows {
       [] -> table_schema
-      [first, .._] ->
+      [first, ..] ->
         model.TableSchema(
           ..table_schema,
-          unique_constraints: list.append(
-            table_schema.unique_constraints,
-            [
-              model.UniqueConstraint(
-                name: first.constraint_name,
-                columns: constraint_columns(rows, []),
-              ),
-            ],
-          ),
+          unique_constraints: list.append(table_schema.unique_constraints, [
+            model.UniqueConstraint(
+              name: first.constraint_name,
+              columns: constraint_columns(rows, []),
+            ),
+          ]),
         )
     }
   }
@@ -646,30 +630,29 @@ fn add_foreign_key(
   fn(table_schema) {
     case rows {
       [] -> table_schema
-      [first, .._] -> {
-        let referenced_schema = option_or_panic(
-          first.referenced_schema,
-          "Foreign key referenced schema is missing",
-        )
-        let referenced_table = option_or_panic(
-          first.referenced_table,
-          "Foreign key referenced table is missing",
-        )
+      [first, ..] -> {
+        let referenced_schema =
+          option_or_panic(
+            first.referenced_schema,
+            "Foreign key referenced schema is missing",
+          )
+        let referenced_table =
+          option_or_panic(
+            first.referenced_table,
+            "Foreign key referenced table is missing",
+          )
 
         model.TableSchema(
           ..table_schema,
-          foreign_keys: list.append(
-            table_schema.foreign_keys,
-            [
-              model.ForeignKey(
-                name: first.constraint_name,
-                columns: constraint_columns(rows, []),
-                referenced_schema: referenced_schema,
-                referenced_table: referenced_table,
-                referenced_columns: foreign_key_columns(rows, []),
-              ),
-            ],
-          ),
+          foreign_keys: list.append(table_schema.foreign_keys, [
+            model.ForeignKey(
+              name: first.constraint_name,
+              columns: constraint_columns(rows, []),
+              referenced_schema: referenced_schema,
+              referenced_table: referenced_table,
+              referenced_columns: foreign_key_columns(rows, []),
+            ),
+          ]),
         )
       }
     }
@@ -684,47 +667,46 @@ fn apply_index_rows(
     [] -> tables
     [row, ..rest] -> {
       let next_tables =
-        upsert_table(
-          tables,
-          row.schema_name,
-          row.table_name,
-          fn(table_schema) {
-            model.TableSchema(
-              ..table_schema,
-              indexes: list.append(
-                table_schema.indexes,
-                [
-                  model.IndexSchema(
-                    name: row.index_name,
-                    unique: row.is_unique,
-                    definition: row.definition,
-                  ),
-                ],
+        upsert_table(tables, row.schema_name, row.table_name, fn(table_schema) {
+          model.TableSchema(
+            ..table_schema,
+            indexes: list.append(table_schema.indexes, [
+              model.IndexSchema(
+                name: row.index_name,
+                unique: row.is_unique,
+                definition: row.definition,
               ),
-            )
-          },
-        )
+            ]),
+          )
+        })
 
       apply_index_rows(next_tables, rest)
     }
   }
 }
 
-fn constraint_columns(rows: List(ConstraintRow), acc: List(String)) -> List(String) {
+fn constraint_columns(
+  rows: List(ConstraintRow),
+  acc: List(String),
+) -> List(String) {
   case rows {
     [] -> reverse(acc)
     [row, ..rest] -> constraint_columns(rest, [row.column_name, ..acc])
   }
 }
 
-fn foreign_key_columns(rows: List(ConstraintRow), acc: List(String)) -> List(String) {
+fn foreign_key_columns(
+  rows: List(ConstraintRow),
+  acc: List(String),
+) -> List(String) {
   case rows {
     [] -> reverse(acc)
     [row, ..rest] -> {
-      let referenced_column = option_or_panic(
-        row.referenced_column,
-        "Foreign key referenced column is missing",
-      )
+      let referenced_column =
+        option_or_panic(
+          row.referenced_column,
+          "Foreign key referenced column is missing",
+        )
       foreign_key_columns(rest, [referenced_column, ..acc])
     }
   }
@@ -739,10 +721,14 @@ fn upsert_table(
   case tables {
     [] -> [updater(empty_table(schema_name, table_name, []))]
     [table_schema, ..rest] -> {
-      case table_schema.schema == schema_name && table_schema.name == table_name {
+      case
+        table_schema.schema == schema_name && table_schema.name == table_name
+      {
         True -> [updater(table_schema), ..rest]
-        False ->
-          [table_schema, ..upsert_table(rest, schema_name, table_name, updater)]
+        False -> [
+          table_schema,
+          ..upsert_table(rest, schema_name, table_name, updater)
+        ]
       }
     }
   }

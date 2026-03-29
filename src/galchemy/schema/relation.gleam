@@ -81,9 +81,7 @@ pub fn infer(snapshot: model.SchemaSnapshot) -> List(TableRelations) {
   list.fold(
     over: snapshot.tables,
     from: base_relations,
-    with: fn(acc, table_schema) {
-      infer_table_relations(table_schema, acc)
-    },
+    with: fn(acc, table_schema) { infer_table_relations(table_schema, acc) },
   )
   |> list.map(normalize_relation_names)
 }
@@ -182,10 +180,10 @@ fn normalize_relation_names(table_relations: TableRelations) -> TableRelations {
         let #(normalized, used_names) = acc
         let normalized_name = next_relation_name(relation.name, used_names)
 
-        #(
-          [Relation(..relation, name: normalized_name), ..normalized],
-          [normalized_name, ..used_names],
-        )
+        #([Relation(..relation, name: normalized_name), ..normalized], [
+          normalized_name,
+          ..used_names
+        ])
       },
     )
 
@@ -217,8 +215,13 @@ fn base_belongs_to_name(
   _source_table_name: String,
 ) -> String {
   case foreign_key.columns {
-    [column_name] -> column_name_to_relation_name(column_name, foreign_key.referenced_table)
-    _ -> singularize_table_name(foreign_key.referenced_table, foreign_key.referenced_table)
+    [column_name] ->
+      column_name_to_relation_name(column_name, foreign_key.referenced_table)
+    _ ->
+      singularize_table_name(
+        foreign_key.referenced_table,
+        foreign_key.referenced_table,
+      )
   }
 }
 
@@ -239,7 +242,8 @@ fn column_name_to_relation_name(
           |> string.drop_end(5)
           |> sanitize_name(fallback_table_name)
 
-        False -> singularize_table_name(fallback_table_name, fallback_table_name)
+        False ->
+          singularize_table_name(fallback_table_name, fallback_table_name)
       }
     }
   }
@@ -249,16 +253,15 @@ fn singularize_table_name(
   table_name: String,
   fallback_table_name: String,
 ) -> String {
-  let singular =
-    case string.ends_with(table_name, "ies") {
-      True -> string.drop_end(table_name, 3) <> "y"
-      False -> {
-        case string.ends_with(table_name, "s") {
-          True -> string.drop_end(table_name, 1)
-          False -> table_name
-        }
+  let singular = case string.ends_with(table_name, "ies") {
+    True -> string.drop_end(table_name, 3) <> "y"
+    False -> {
+      case string.ends_with(table_name, "s") {
+        True -> string.drop_end(table_name, 1)
+        False -> table_name
       }
     }
+  }
 
   sanitize_name(singular, fallback_table_name)
 }
@@ -374,7 +377,7 @@ fn trim_trailing_underscores(value: String) -> String {
 
 fn prefix_if_needed(value: String) -> String {
   case string.to_graphemes(value) {
-    [first, .._] -> {
+    [first, ..] -> {
       case is_digit(first) {
         True -> "relation_" <> value
         False -> value
