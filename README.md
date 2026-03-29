@@ -30,9 +30,11 @@ It helps you:
 - compile queries into SQL with positional parameters;
 - execute compiled queries through `pog`.
 - introspect PostgreSQL schemas into typed snapshots;
+- infer relation metadata from foreign keys;
 - diff schema snapshots into explicit change operations;
 - compile and apply PostgreSQL migration plans.
 - generate Gleam schema modules from PostgreSQL schema snapshots.
+- plan session flushes into ordered `insert` / `update` / `delete` queries.
 
 It does not try to manage:
 
@@ -54,10 +56,12 @@ The public API is intentionally namespaced by module:
 - `galchemy/dsl/delete`: `delete` query builder;
 - `galchemy/schema/model`: schema snapshot types for future diffing and generation tooling;
 - `galchemy/schema/introspection/postgres`: PostgreSQL schema introspection into schema snapshots;
+- `galchemy/schema/relation`: relation metadata and relation inference from schema snapshots;
 - `galchemy/schema/diff`: schema snapshot comparison into explicit change operations;
 - `galchemy/schema/ddl/postgres`: PostgreSQL DDL compilation for schema diff operations;
 - `galchemy/schema/migration/postgres`: PostgreSQL migration planning, status tracking, and application helpers;
 - `galchemy/schema/generator/gleam`: Gleam module generation from schema snapshots;
+- `galchemy/session/unit_of_work`: session-style change tracking and ordered flush planning into query AST values;
 - `galchemy/sql/compiler`: AST to `SQL + params` compilation, including `compile_with` and compiler config hooks;
 - `galchemy/sql/postgres`: PostgreSQL runtime adapter on top of `pog`;
 - `galchemy`: top-level facade for generic compiler entry points only.
@@ -378,10 +382,12 @@ The current stable surface includes:
 - `union` / `union all`;
 - window functions;
 - PostgreSQL schema introspection into `SchemaSnapshot`;
+- relation inference and relation metadata from `ForeignKey` definitions;
 - schema diff into explicit operations;
 - PostgreSQL DDL compilation for schema operations;
 - PostgreSQL migration plans, migration history queries, and transactional apply helpers;
-- Gleam schema module generation from `SchemaSnapshot`;
+- Gleam schema module generation from `SchemaSnapshot`, including `relations()` helpers;
+- session-style `unit_of_work` flush planning with dependency-aware insert/delete ordering;
 - configurable compiler hooks through `CompilerConfig`;
 - PostgreSQL execution through `pog`.
 
@@ -390,8 +396,6 @@ The current stable surface includes:
 The library still intentionally does not include:
 
 - ORM behaviour;
-- relations API;
-- session or unit-of-work patterns;
 - lazy or eager loading;
 - dialect abstraction;
 - arbitrary dialect plugins.

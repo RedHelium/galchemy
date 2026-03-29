@@ -209,6 +209,108 @@ pub fn generate_snapshot_without_schema_segment_test() {
     ]
 }
 
+pub fn generate_snapshot_with_relations_test() {
+  let snapshot =
+    model.SchemaSnapshot(tables: [
+      model.TableSchema(
+        schema: "public",
+        name: "users",
+        columns: [column("id", model.IntegerType, False, option.None, 1)],
+        primary_key: option.None,
+        unique_constraints: [],
+        foreign_keys: [],
+        indexes: [],
+      ),
+      model.TableSchema(
+        schema: "public",
+        name: "posts",
+        columns: [
+          column("id", model.IntegerType, False, option.None, 1),
+          column("user_id", model.IntegerType, False, option.None, 2),
+        ],
+        primary_key: option.None,
+        unique_constraints: [],
+        foreign_keys: [
+          model.ForeignKey(
+            name: "posts_user_id_fkey",
+            columns: ["user_id"],
+            referenced_schema: "public",
+            referenced_table: "users",
+            referenced_columns: ["id"],
+          ),
+        ],
+        indexes: [],
+      ),
+    ])
+
+  assert generator.generate(snapshot, generator.default_options("app/generated"))
+    == [
+      generator.GeneratedModule(
+        module_path: "app/generated/public/users",
+        file_path: "src/app/generated/public/users.gleam",
+        source:
+          "import galchemy/dsl/table\n\n"
+          <> "import galchemy/schema/relation\n\n"
+          <> "pub fn table_() {\n"
+          <> "  table.table(\"users\")\n"
+          <> "  |> table.in_schema(\"public\")\n"
+          <> "}\n\n"
+          <> "pub fn as_(alias: String) {\n"
+          <> "  table_()\n"
+          <> "  |> table.as_(alias)\n"
+          <> "}\n\n"
+          <> "pub fn id(table_ref) {\n"
+          <> "  table.int(table_ref, \"id\")\n"
+          <> "}\n\n"
+          <> "pub fn relations() {\n"
+          <> "  [\n"
+          <> "    relation.has_many(\n"
+          <> "      \"posts\",\n"
+          <> "      \"posts_user_id_fkey\",\n"
+          <> "      relation.table_ref(\"public\", \"posts\"),\n"
+          <> "      [\n"
+          <> "        relation.pair(\"id\", \"user_id\")\n"
+          <> "      ],\n"
+          <> "    )\n"
+          <> "  ]\n"
+          <> "}\n",
+      ),
+      generator.GeneratedModule(
+        module_path: "app/generated/public/posts",
+        file_path: "src/app/generated/public/posts.gleam",
+        source:
+          "import galchemy/dsl/table\n\n"
+          <> "import galchemy/schema/relation\n\n"
+          <> "pub fn table_() {\n"
+          <> "  table.table(\"posts\")\n"
+          <> "  |> table.in_schema(\"public\")\n"
+          <> "}\n\n"
+          <> "pub fn as_(alias: String) {\n"
+          <> "  table_()\n"
+          <> "  |> table.as_(alias)\n"
+          <> "}\n\n"
+          <> "pub fn id(table_ref) {\n"
+          <> "  table.int(table_ref, \"id\")\n"
+          <> "}\n\n"
+          <> "pub fn user_id(table_ref) {\n"
+          <> "  table.int(table_ref, \"user_id\")\n"
+          <> "}\n\n"
+          <> "pub fn relations() {\n"
+          <> "  [\n"
+          <> "    relation.belongs_to(\n"
+          <> "      \"user\",\n"
+          <> "      \"posts_user_id_fkey\",\n"
+          <> "      relation.table_ref(\"public\", \"users\"),\n"
+          <> "      [\n"
+          <> "        relation.pair(\"user_id\", \"id\")\n"
+          <> "      ],\n"
+          <> "    )\n"
+          <> "  ]\n"
+          <> "}\n",
+      ),
+    ]
+}
+
 fn column(
   name: String,
   data_type: model.ColumnType,

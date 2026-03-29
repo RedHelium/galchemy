@@ -1,6 +1,8 @@
 import galchemy/schema/model
+import galchemy/schema/relation
 import gleam/int
 import gleam/list
+import gleam/option
 import gleam/string
 
 pub type GeneratorOptions {
@@ -23,13 +25,36 @@ pub fn generate(
   snapshot: model.SchemaSnapshot,
   options: GeneratorOptions,
 ) -> List(GeneratedModule) {
+  let inferred_relations = relation.infer(snapshot)
+
   list.map(snapshot.tables, fn(table_schema) {
-    generate_table(table_schema, options)
+    let table_ref = relation.table_ref(table_schema.schema, table_schema.name)
+
+    case find_table_relations(inferred_relations, table_ref) {
+      option.Some(table_relations) ->
+        generate_table_with_relations(table_schema, table_relations, options)
+      option.None -> generate_table(table_schema, options)
+    }
   })
 }
 
 pub fn generate_table(
   table_schema: model.TableSchema,
+  options: GeneratorOptions,
+) -> GeneratedModule {
+  generate_table_with_relations(
+    table_schema,
+    relation.TableRelations(
+      table: relation.table_ref(table_schema.schema, table_schema.name),
+      relations: [],
+    ),
+    options,
+  )
+}
+
+pub fn generate_table_with_relations(
+  table_schema: model.TableSchema,
+  table_relations: relation.TableRelations,
   options: GeneratorOptions,
 ) -> GeneratedModule {
   let module_segments = module_segments(table_schema, options)
@@ -38,7 +63,7 @@ pub fn generate_table(
   GeneratedModule(
     module_path: module_path,
     file_path: "src/" <> module_path <> ".gleam",
-    source: render_module_source(table_schema),
+    source: render_module_source(table_schema, table_relations),
   )
 }
 
@@ -77,15 +102,30 @@ fn normalize_root_segments(root_module: String) -> List(String) {
   }
 }
 
-fn render_module_source(table_schema: model.TableSchema) -> String {
+fn render_module_source(
+  table_schema: model.TableSchema,
+  table_relations: relation.TableRelations,
+) -> String {
   let column_blocks = render_column_blocks(table_schema.columns)
-  let base_blocks = [
-    "import galchemy/dsl/table",
-    render_table_function(table_schema),
-    render_alias_function(),
-  ]
+  let imports =
+    case table_relations.relations {
+      [] -> ["import galchemy/dsl/table"]
+      _ -> ["import galchemy/dsl/table", "import galchemy/schema/relation"]
+    }
+  let relation_blocks = render_relation_blocks(table_relations.relations)
+  let base_blocks =
+    list.append(
+      imports,
+      [
+        render_table_function(table_schema),
+        render_alias_function(),
+      ],
+    )
 
-  string.join(list.append(base_blocks, column_blocks), with: "\n\n")
+  string.join(
+    list.append(list.append(base_blocks, column_blocks), relation_blocks),
+    with: "\n\n",
+  )
   <> "\n"
 }
 
@@ -126,6 +166,84 @@ fn render_column_blocks(columns: List(model.ColumnSchema)) -> List(String) {
     })
 
   list.reverse(reversed_blocks)
+}
+
+fn render_relation_blocks(
+  relations: List(relation.Relation),
+) -> List(String) {
+  case relations {
+    [] -> []
+    _ ->
+      [
+        string.join(
+          [
+            "pub fn relations() {",
+            "  [",
+            render_relation_items(relations),
+            "  ]",
+            "}",
+          ],
+          with: "\n",
+        ),
+      ]
+  }
+}
+
+fn render_relation_items(relations: List(relation.Relation)) -> String {
+  let rendered = list.map(relations, render_relation_item)
+
+  string.join(rendered, with: ",\n")
+}
+
+fn render_relation_item(next_relation: relation.Relation) -> String {
+  let constructor = case next_relation.kind {
+    relation.BelongsTo -> "belongs_to"
+    relation.HasMany -> "has_many"
+  }
+  let relation.TableRef(schema: schema_name, name: table_name) =
+    next_relation.related_table
+  let column_pairs = render_column_pairs(next_relation.column_pairs)
+
+  "    relation."
+  <> constructor
+  <> "(\n"
+  <> "      \""
+  <> escape_string(next_relation.name)
+  <> "\",\n"
+  <> "      \""
+  <> escape_string(next_relation.foreign_key_name)
+  <> "\",\n"
+  <> "      relation.table_ref(\""
+  <> escape_string(schema_name)
+  <> "\", \""
+  <> escape_string(table_name)
+  <> "\"),\n"
+  <> "      ["
+  <> column_pairs
+  <> "],\n"
+  <> "    )"
+}
+
+fn render_column_pairs(pairs: List(relation.ColumnPair)) -> String {
+  case pairs {
+    [] -> ""
+    _ ->
+      "\n"
+      <> string.join(
+        list.map(pairs, fn(pair) {
+          let relation.ColumnPair(local_column: local_column, related_column: related_column) =
+            pair
+
+          "        relation.pair(\""
+          <> escape_string(local_column)
+          <> "\", \""
+          <> escape_string(related_column)
+          <> "\")"
+        }),
+        with: ",\n",
+      )
+      <> "\n      "
+  }
 }
 
 fn render_column_function(
@@ -351,4 +469,19 @@ fn escape_string(value: String) -> String {
   value
   |> string.replace(each: "\\", with: "\\\\")
   |> string.replace(each: "\"", with: "\\\"")
+}
+
+fn find_table_relations(
+  relations_by_table: List(relation.TableRelations),
+  target_table: relation.TableRef,
+) -> option.Option(relation.TableRelations) {
+  case relations_by_table {
+    [] -> option.None
+    [table_relations, ..rest] -> {
+      case table_relations.table == target_table {
+        True -> option.Some(table_relations)
+        False -> find_table_relations(rest, target_table)
+      }
+    }
+  }
 }
