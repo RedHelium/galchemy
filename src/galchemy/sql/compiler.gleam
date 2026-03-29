@@ -22,8 +22,19 @@ pub type CompileError {
   InvalidOffset(Int)
 }
 
+pub type CompilerConfig {
+  CompilerConfig(
+    render_identifier: fn(String) -> String,
+    validate_function_name: fn(String) -> Result(String, CompileError),
+  )
+}
+
 type CompileState {
-  CompileState(next_param: Int, params: List(expression.SqlValue))
+  CompileState(
+    next_param: Int,
+    params: List(expression.SqlValue),
+    config: CompilerConfig,
+  )
 }
 
 fn result_try(result: Result(a, e), next: fn(a) -> Result(b, e)) -> Result(b, e) {
@@ -33,8 +44,15 @@ fn result_try(result: Result(a, e), next: fn(a) -> Result(b, e)) -> Result(b, e)
   }
 }
 
-fn new_state() -> CompileState {
-  CompileState(next_param: 1, params: [])
+pub fn default_config() -> CompilerConfig {
+  CompilerConfig(
+    render_identifier: default_render_identifier,
+    validate_function_name: default_validate_function_name,
+  )
+}
+
+fn new_state(config: CompilerConfig) -> CompileState {
+  CompileState(next_param: 1, params: [], config: config)
 }
 
 fn finalize(sql: String, state: CompileState) -> CompiledQuery {
@@ -42,18 +60,32 @@ fn finalize(sql: String, state: CompileState) -> CompiledQuery {
 }
 
 pub fn compile(q: query.Query) -> Result(CompiledQuery, CompileError) {
+  compile_with(q, default_config())
+}
+
+pub fn compile_with(
+  q: query.Query,
+  config: CompilerConfig,
+) -> Result(CompiledQuery, CompileError) {
   case q {
-    query.Select(s) -> compile_select(s)
-    query.Insert(i) -> compile_insert(i)
-    query.Update(u) -> compile_update(u)
-    query.Delete(d) -> compile_delete(d)
+    query.Select(s) -> compile_select_with(s, config)
+    query.Insert(i) -> compile_insert_with(i, config)
+    query.Update(u) -> compile_update_with(u, config)
+    query.Delete(d) -> compile_delete_with(d, config)
   }
 }
 
 pub fn compile_select(
   q: expression.SelectQuery,
 ) -> Result(CompiledQuery, CompileError) {
-  let state0 = new_state()
+  compile_select_with(q, default_config())
+}
+
+pub fn compile_select_with(
+  q: expression.SelectQuery,
+  config: CompilerConfig,
+) -> Result(CompiledQuery, CompileError) {
+  let state0 = new_state(config)
   use #(sql, state1) <- result_try(compile_select_query(q, state0))
   Ok(finalize(sql, state1))
 }
@@ -123,8 +155,15 @@ fn compile_select_query(
 pub fn compile_insert(
   q: query.InsertQuery,
 ) -> Result(CompiledQuery, CompileError) {
+  compile_insert_with(q, default_config())
+}
+
+pub fn compile_insert_with(
+  q: query.InsertQuery,
+  config: CompilerConfig,
+) -> Result(CompiledQuery, CompileError) {
   let query.InsertQuery(table: table, rows: rows, returning: returning) = q
-  let state0 = new_state()
+  let state0 = new_state(config)
 
   use #(columns_sql, rows_sql, state1) <- result_try(compile_insert_rows(
     rows,
@@ -137,7 +176,7 @@ pub fn compile_insert(
 
   let sql =
     "INSERT INTO "
-    <> compile_table_ref(table)
+    <> compile_table_ref(table, state0.config)
     <> " ("
     <> columns_sql
     <> ") VALUES "
@@ -150,13 +189,20 @@ pub fn compile_insert(
 pub fn compile_update(
   q: query.UpdateQuery,
 ) -> Result(CompiledQuery, CompileError) {
+  compile_update_with(q, default_config())
+}
+
+pub fn compile_update_with(
+  q: query.UpdateQuery,
+  config: CompilerConfig,
+) -> Result(CompiledQuery, CompileError) {
   let query.UpdateQuery(
     table: table,
     assignments: assignments,
     where_: where_,
     returning: returning,
   ) = q
-  let state0 = new_state()
+  let state0 = new_state(config)
 
   use #(set_sql, state1) <- result_try(compile_assignments(assignments, state0))
   use #(where_sql, state2) <- result_try(compile_where(where_, state1))
@@ -167,7 +213,7 @@ pub fn compile_update(
 
   let sql =
     "UPDATE "
-    <> compile_table_ref(table)
+    <> compile_table_ref(table, state0.config)
     <> " SET "
     <> set_sql
     <> where_sql
@@ -179,8 +225,15 @@ pub fn compile_update(
 pub fn compile_delete(
   q: query.DeleteQuery,
 ) -> Result(CompiledQuery, CompileError) {
+  compile_delete_with(q, default_config())
+}
+
+pub fn compile_delete_with(
+  q: query.DeleteQuery,
+  config: CompilerConfig,
+) -> Result(CompiledQuery, CompileError) {
   let query.DeleteQuery(table: table, where_: where_, returning: returning) = q
-  let state0 = new_state()
+  let state0 = new_state(config)
 
   use #(where_sql, state1) <- result_try(compile_where(where_, state0))
   use #(returning_sql, state2) <- result_try(compile_returning(
@@ -189,7 +242,10 @@ pub fn compile_delete(
   ))
 
   let sql =
-    "DELETE FROM " <> compile_table_ref(table) <> where_sql <> returning_sql
+    "DELETE FROM "
+    <> compile_table_ref(table, state0.config)
+    <> where_sql
+    <> returning_sql
 
   Ok(finalize(sql, state2))
 }
@@ -220,7 +276,8 @@ fn compile_ctes_loop(
         cte_query,
         state,
       ))
-      let next_item = compile_identifier(name) <> " AS (" <> cte_sql <> ")"
+      let next_item =
+        compile_identifier(name, state.config) <> " AS (" <> cte_sql <> ")"
       compile_ctes_loop(rest, [next_item, ..acc], next_state)
     }
   }
@@ -294,7 +351,7 @@ fn compile_select_item(
 
   let sql = case alias {
     option.None -> expr_sql
-    option.Some(a) -> expr_sql <> " AS " <> compile_identifier(a)
+    option.Some(a) -> expr_sql <> " AS " <> compile_identifier(a, state.config)
   }
 
   Ok(#(sql, state1))
@@ -375,7 +432,7 @@ fn compile_insert_row_loop(
     }
     [#(column, expr), ..rest] -> {
       use #(expr_sql, next_state) <- result_try(compile_expression(expr, state))
-      let column_sql = compile_column_name(column)
+      let column_sql = compile_column_name(column, state.config)
       compile_insert_row_loop(
         rest,
         [column_sql, ..columns_acc],
@@ -417,7 +474,8 @@ fn compile_assignments_loop(
     [] -> Ok(#(join_strings(reverse(acc), ", "), state))
     [#(column, expr), ..rest] -> {
       use #(expr_sql, next_state) <- result_try(compile_expression(expr, state))
-      let assignment_sql = compile_column_name(column) <> " = " <> expr_sql
+      let assignment_sql =
+        compile_column_name(column, state.config) <> " = " <> expr_sql
       compile_assignments_loop(rest, [assignment_sql, ..acc], next_state)
     }
   }
@@ -445,11 +503,11 @@ fn compile_expression(
   state: CompileState,
 ) -> Result(#(String, CompileState), CompileError) {
   case expr {
-    expression.ColumnExpr(meta) -> Ok(#(compile_column_ref(meta), state))
+    expression.ColumnExpr(meta) -> Ok(#(compile_column_ref(meta, state.config), state))
     expression.ValueExpr(expression.Null) -> Ok(#("NULL", state))
     expression.StarExpr -> Ok(#("*", state))
     expression.FunctionExpr(name: name, arguments: arguments) -> {
-      use function_name <- result_try(compile_function_name(name))
+      use function_name <- result_try(compile_function_name(name, state.config))
       use #(arguments_sql, next_state) <- result_try(compile_expression_list(
         arguments,
         state,
@@ -554,10 +612,11 @@ fn push_param(
 ) -> #(String, CompileState) {
   let placeholder = "$" <> int.to_string(state.next_param)
   let next_state =
-    CompileState(next_param: state.next_param + 1, params: [
-      value,
-      ..state.params
-    ])
+    CompileState(
+      next_param: state.next_param + 1,
+      params: [value, ..state.params],
+      config: state.config,
+    )
   #(placeholder, next_state)
 }
 
@@ -566,13 +625,16 @@ fn compile_source(
   state: CompileState,
 ) -> Result(#(String, CompileState), CompileError) {
   case source {
-    expression.TableSource(table) -> Ok(#(compile_table_ref(table), state))
+    expression.TableSource(table) -> Ok(#(compile_table_ref(table, state.config), state))
     expression.DerivedSource(query: derived_query, alias: alias) -> {
       use #(query_sql, next_state) <- result_try(compile_select_query(
         derived_query,
         state,
       ))
-      Ok(#("(" <> query_sql <> ") AS " <> compile_identifier(alias), next_state))
+      Ok(#(
+        "(" <> query_sql <> ") AS " <> compile_identifier(alias, state.config),
+        next_state,
+      ))
     }
   }
 }
@@ -834,48 +896,67 @@ fn compile_offset(offset: option.Option(Int)) -> Result(String, CompileError) {
   }
 }
 
-fn compile_table_ref(table: schema.Table) -> String {
+fn compile_table_ref(table: schema.Table, config: CompilerConfig) -> String {
   let schema.Table(schema: schema_name, name: name, alias: alias) = table
   let qualified_name = case schema_name {
-    option.None -> compile_identifier(name)
+    option.None -> compile_identifier(name, config)
     option.Some(schema_name) ->
-      compile_identifier(schema_name) <> "." <> compile_identifier(name)
+      compile_identifier(schema_name, config)
+      <> "."
+      <> compile_identifier(name, config)
   }
 
   case alias {
     option.None -> qualified_name
-    option.Some(a) -> qualified_name <> " AS " <> compile_identifier(a)
+    option.Some(a) -> qualified_name <> " AS " <> compile_identifier(a, config)
   }
 }
 
-fn compile_column_ref(column: schema.ColumnMeta) -> String {
+fn compile_column_ref(column: schema.ColumnMeta, config: CompilerConfig) -> String {
   let schema.ColumnMeta(table: table, name: column_name) = column
   let schema.Table(schema: schema_name, name: table_name, alias: alias) = table
   let qualifier = case alias {
     option.None -> {
       case schema_name {
-        option.None -> compile_identifier(table_name)
+        option.None -> compile_identifier(table_name, config)
         option.Some(schema_name) ->
-          compile_identifier(schema_name) <> "." <> compile_identifier(table_name)
+          compile_identifier(schema_name, config)
+          <> "."
+          <> compile_identifier(table_name, config)
       }
     }
-    option.Some(a) -> compile_identifier(a)
+    option.Some(a) -> compile_identifier(a, config)
   }
-  qualifier <> "." <> compile_identifier(column_name)
+  qualifier <> "." <> compile_identifier(column_name, config)
 }
 
-fn compile_column_name(column: schema.ColumnMeta) -> String {
+fn compile_column_name(column: schema.ColumnMeta, config: CompilerConfig) -> String {
   let schema.ColumnMeta(table: _, name: name) = column
-  compile_identifier(name)
+  compile_identifier(name, config)
 }
 
-fn compile_identifier(identifier: String) -> String {
+fn compile_identifier(identifier: String, config: CompilerConfig) -> String {
+  let CompilerConfig(render_identifier: render_identifier, validate_function_name: _) =
+    config
+  render_identifier(identifier)
+}
+
+fn compile_function_name(
+  name: String,
+  config: CompilerConfig,
+) -> Result(String, CompileError) {
+  let CompilerConfig(render_identifier: _, validate_function_name: validate_function_name) =
+    config
+  validate_function_name(name)
+}
+
+fn default_render_identifier(identifier: String) -> String {
   "\""
   <> string.replace(in: identifier, each: "\"", with: "\"\"")
   <> "\""
 }
 
-fn compile_function_name(name: String) -> Result(String, CompileError) {
+fn default_validate_function_name(name: String) -> Result(String, CompileError) {
   case string.is_empty(name) {
     True -> Error(InvalidFunctionName(name))
     False -> Ok(name)

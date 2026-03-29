@@ -38,13 +38,7 @@ pub fn main() -> Nil {
           |> decode.map(fn(name) { #(id, name) })
         })
 
-      case
-        postgres.execute_with_decoder(
-          query.Select(select_query),
-          decoder,
-          connection,
-        )
-      {
+      case postgres.execute_with(query.Select(select_query), decoder, connection) {
         Ok(pog.Returned(count: count, rows: rows)) -> {
           io.println("Запрос выполнен успешно.")
           io.println("Количество строк: " <> int.to_string(count))

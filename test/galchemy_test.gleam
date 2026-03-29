@@ -1,3 +1,4 @@
+import galchemy
 import galchemy/ast/expression as ast_expression
 import galchemy/ast/query
 import galchemy/dsl/delete
@@ -316,6 +317,71 @@ pub fn compile_select_invalid_function_name_test() {
       assert error == compiler.InvalidFunctionName("")
     }
   }
+}
+
+pub fn compile_with_custom_config_test() {
+  let users = table.as_(table.table("users"), "u")
+  let id = table.int(users, "id")
+  let name = table.text(users, "name")
+
+  let config =
+    compiler.CompilerConfig(
+      render_identifier: fn(identifier) { "[" <> identifier <> "]" },
+      validate_function_name: fn(function_name) {
+        case function_name == "lower" {
+          True -> Ok("LOWER")
+          False -> Ok(function_name)
+        }
+      },
+    )
+
+  let compiler.CompiledQuery(sql: sql, params: params) =
+    case compiler.compile_with(
+      query.Select(
+        select.select([
+          expr.item(expr.col(id)),
+          expr.as_(expr.call("lower", [expr.col(name)]), "normalized_name"),
+        ])
+        |> select.from(users),
+      ),
+      config,
+    ) {
+      Ok(compiled) -> compiled
+      Error(error) -> {
+        let message =
+          "Expected custom compiler config to succeed: "
+          <> string.inspect(error)
+        panic as message
+      }
+    }
+
+  assert sql
+    == "SELECT [u].[id], LOWER([u].[name]) AS [normalized_name] FROM [users] AS [u]"
+  assert params == []
+}
+
+pub fn root_compile_with_test() {
+  let config =
+    galchemy.default_compiler_config()
+
+  let compiler.CompiledQuery(sql: sql, params: params) =
+    case galchemy.compile_with(
+      query.Select(
+        select.select([expr.item(expr.col(users_id()))])
+        |> select.from(users_table()),
+      ),
+      config,
+    ) {
+      Ok(compiled) -> compiled
+      Error(error) -> {
+        let message =
+          "Expected root compile_with to succeed: " <> string.inspect(error)
+        panic as message
+      }
+    }
+
+  assert sql == "SELECT \"users\".\"id\" FROM \"users\""
+  assert params == []
 }
 
 pub fn compile_select_group_by_having_test() {
@@ -806,7 +872,7 @@ pub fn compile_delete_test() {
   assert params == [ast_expression.Int(9)]
 }
 
-pub fn compile_to_query_test() {
+pub fn to_query_test() {
   let users = table.as_(table.table("users"), "u")
   let id = table.int(users, "id")
 
@@ -815,18 +881,18 @@ pub fn compile_to_query_test() {
     |> select.from(users)
     |> select.where_(predicate.eq(expr.col(id), expr.int(42)))
 
-  case postgres.compile_to_query(query.Select(select_query)) {
+  case postgres.to_query(query.Select(select_query)) {
     Ok(pog_query) -> {
       assert query_sql(pog_query)
         == "SELECT \"u\".\"id\" FROM \"users\" AS \"u\" WHERE (\"u\".\"id\" = $1)"
       assert query_parameters(pog_query) == [pog.int(42)]
       assert query_timeout(pog_query) == 5000
     }
-    Error(_) -> panic as "Expected successful compile_to_query result"
+    Error(_) -> panic as "Expected successful to_query result"
   }
 }
 
-pub fn compile_to_query_group_by_having_test() {
+pub fn to_query_group_by_having_test() {
   let users = table.as_(table.table("users"), "u")
   let active = table.bool(users, "active")
   let id = table.int(users, "id")
@@ -840,17 +906,17 @@ pub fn compile_to_query_group_by_having_test() {
     |> select.group_by(expr.col(active))
     |> select.having(predicate.gt(expr.count(expr.col(id)), expr.int(2)))
 
-  case postgres.compile_to_query(query.Select(select_query)) {
+  case postgres.to_query(query.Select(select_query)) {
     Ok(pog_query) -> {
       assert query_sql(pog_query)
         == "SELECT \"u\".\"active\", COUNT(\"u\".\"id\") AS \"user_count\" FROM \"users\" AS \"u\" GROUP BY \"u\".\"active\" HAVING (COUNT(\"u\".\"id\") > $1)"
       assert query_parameters(pog_query) == [pog.int(2)]
     }
-    Error(_) -> panic as "Expected successful compile_to_query result"
+    Error(_) -> panic as "Expected successful to_query result"
   }
 }
 
-pub fn compile_to_query_multi_row_insert_test() {
+pub fn to_query_multi_row_insert_test() {
   let insert_query =
     insert.insert_into(users_table())
     |> insert.values([
@@ -864,23 +930,43 @@ pub fn compile_to_query_multi_row_insert_test() {
       ],
     ])
 
-  case postgres.compile_to_query(query.Insert(insert_query)) {
+  case postgres.to_query(query.Insert(insert_query)) {
     Ok(pog_query) -> {
       assert query_sql(pog_query)
         == "INSERT INTO \"users\" (\"id\", \"name\") VALUES ($1, $2), ($3, $4)"
       assert query_parameters(pog_query)
         == [pog.int(1), pog.text("Ann"), pog.int(2), pog.text("Bob")]
     }
-    Error(_) -> panic as "Expected successful compile_to_query result"
+    Error(_) -> panic as "Expected successful to_query result"
   }
 }
 
-pub fn compile_to_query_error_test() {
-  case postgres.compile_to_query(query.Select(select.select([]))) {
-    Ok(_) -> panic as "Expected compile_to_query to propagate compile errors"
+pub fn to_query_error_test() {
+  case postgres.to_query(query.Select(select.select([]))) {
+    Ok(_) -> panic as "Expected to_query to propagate compile errors"
     Error(error) -> {
       assert error == compiler.MissingFrom
     }
+  }
+}
+
+pub fn to_query_with_custom_config_test() {
+  let config =
+    compiler.CompilerConfig(
+      render_identifier: fn(identifier) { "`" <> identifier <> "`" },
+      validate_function_name: fn(function_name) { Ok(function_name) },
+    )
+
+  let select_query =
+    select.select([expr.item(expr.col(users_id()))])
+    |> select.from(users_table())
+
+  case postgres.to_query_with(query.Select(select_query), config) {
+    Ok(pog_query) -> {
+      assert query_sql(pog_query) == "SELECT `users`.`id` FROM `users`"
+      assert query_parameters(pog_query) == []
+    }
+    Error(_) -> panic as "Expected successful to_query_with result"
   }
 }
 
@@ -935,14 +1021,14 @@ pub fn to_pog_value_test() {
   assert postgres.to_pog_value(ast_expression.Null) == pog.null()
 }
 
-pub fn from_compiled_test() {
+pub fn to_query_from_compiled_test() {
   let compiled =
     compiler.CompiledQuery(
       sql: "SELECT users.id FROM users WHERE users.id = $1 AND users.name = $2",
       params: [ast_expression.Int(7), ast_expression.Text("Ann")],
     )
 
-  let pog_query = postgres.from_compiled(compiled)
+  let pog_query = postgres.to_query_from_compiled(compiled)
 
   assert query_sql(pog_query)
     == "SELECT users.id FROM users WHERE users.id = $1 AND users.name = $2"
@@ -950,7 +1036,7 @@ pub fn from_compiled_test() {
   assert query_timeout(pog_query) == 5000
 }
 
-pub fn from_compiled_extended_values_test() {
+pub fn to_query_from_compiled_extended_values_test() {
   let ts =
     timestamp.from_unix_seconds_and_nanoseconds(
       seconds: 1_700_000_000,
@@ -976,7 +1062,7 @@ pub fn from_compiled_extended_values_test() {
       ],
     )
 
-  let pog_query = postgres.from_compiled(compiled)
+  let pog_query = postgres.to_query_from_compiled(compiled)
 
   assert query_sql(pog_query) == "SELECT $1, $2, $3, $4"
   assert query_parameters(pog_query)

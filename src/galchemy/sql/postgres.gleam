@@ -47,18 +47,27 @@ fn with_params_loop(
 }
 
 /// Builds a `pog` query from already compiled SQL.
-pub fn from_compiled(compiled: compiler.CompiledQuery) -> pog.Query(Nil) {
+pub fn to_query_from_compiled(
+  compiled: compiler.CompiledQuery,
+) -> pog.Query(Nil) {
   let compiler.CompiledQuery(sql: sql, params: params) = compiled
   pog.query(sql)
   |> with_params(params)
 }
 
 /// Compiles an AST query and converts it into a `pog` query.
-pub fn compile_to_query(
+pub fn to_query(
   query: ast_query.Query,
 ) -> Result(pog.Query(Nil), compiler.CompileError) {
-  case compiler.compile(query) {
-    Ok(compiled) -> Ok(from_compiled(compiled))
+  to_query_with(query, compiler.default_config())
+}
+
+pub fn to_query_with(
+  query: ast_query.Query,
+  config: compiler.CompilerConfig,
+) -> Result(pog.Query(Nil), compiler.CompileError) {
+  case compiler.compile_with(query, config) {
+    Ok(compiled) -> Ok(to_query_from_compiled(compiled))
     Error(error) -> Error(error)
   }
 }
@@ -68,7 +77,15 @@ pub fn execute(
   query: ast_query.Query,
   connection: pog.Connection,
 ) -> Result(pog.Returned(Nil), PostgresError) {
-  case compile_to_query(query) {
+  execute_with_config(query, compiler.default_config(), connection)
+}
+
+pub fn execute_with_config(
+  query: ast_query.Query,
+  config: compiler.CompilerConfig,
+  connection: pog.Connection,
+) -> Result(pog.Returned(Nil), PostgresError) {
+  case to_query_with(query, config) {
     Ok(compiled_query) -> {
       case pog.execute(compiled_query, on: connection) {
         Ok(returned) -> Ok(returned)
@@ -80,12 +97,21 @@ pub fn execute(
 }
 
 /// Executes an AST query using a row decoder.
-pub fn execute_with_decoder(
+pub fn execute_with(
   query: ast_query.Query,
   decoder: decode.Decoder(row),
   connection: pog.Connection,
 ) -> Result(pog.Returned(row), PostgresError) {
-  case compile_to_query(query) {
+  execute_with_decoder_config(query, decoder, compiler.default_config(), connection)
+}
+
+pub fn execute_with_decoder_config(
+  query: ast_query.Query,
+  decoder: decode.Decoder(row),
+  config: compiler.CompilerConfig,
+  connection: pog.Connection,
+) -> Result(pog.Returned(row), PostgresError) {
+  case to_query_with(query, config) {
     Ok(compiled_query) -> {
       let query_with_decoder = pog.returning(compiled_query, decoder)
 
