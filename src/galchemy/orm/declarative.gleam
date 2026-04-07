@@ -1,3 +1,4 @@
+import galchemy/orm/codec
 import galchemy/orm/metadata
 import galchemy/schema/model
 import galchemy/schema/relation
@@ -147,6 +148,10 @@ pub fn array(name: String, item_type: model.ColumnType) -> Column {
 
 pub fn custom(name: String, type_name: String) -> Column {
   column(name, model.CustomType(type_name))
+}
+
+pub fn custom_with(name: String, next_type: codec.CustomCodec(a)) -> Column {
+  column(name, model.CustomType(codec.sql_type_name(next_type)))
 }
 
 pub fn nullable(next_column: Column) -> Column {

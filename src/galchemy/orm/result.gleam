@@ -1,4 +1,5 @@
 import galchemy/ast/expression
+import galchemy/orm/codec
 import galchemy/orm/entity
 import galchemy/orm/materializer
 import galchemy/orm/metadata
@@ -19,6 +20,7 @@ pub type Row {
 pub type MappingError {
   MissingScalar(name: String)
   MissingEntity(table: metadata.ModelMetadata)
+  CodecError(codec.CodecError)
   MaterializationError(materializer.MaterializationError)
 }
 
@@ -44,6 +46,20 @@ pub fn scalar_value(name: String) -> Mapper(expression.SqlValue) {
     case scalar_named(next_row.scalars, name) {
       option.Some(field) -> Ok(#(field.value, next_materializer))
       option.None -> Error(MissingScalar(name))
+    }
+  })
+}
+
+pub fn scalar_as(name: String, next_codec: codec.Codec(a)) -> Mapper(a) {
+  Mapper(run: fn(next_row, next_materializer) {
+    use #(value, updated_materializer) <- result_try(scalar_value(name).run(
+      next_row,
+      next_materializer,
+    ))
+
+    case codec.decode(next_codec, value) {
+      Ok(decoded) -> Ok(#(decoded, updated_materializer))
+      Error(error) -> Error(CodecError(error))
     }
   })
 }

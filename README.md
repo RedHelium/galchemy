@@ -66,6 +66,7 @@ The public API is intentionally namespaced by module:
 - `galchemy/orm/declarative`: declarative model definitions with explicit column builders and relation definitions that bridge into `SchemaSnapshot` and `ModelMetadata`;
 - `galchemy/orm/query`: model-first query helpers, including joins by relation metadata, that compile into the existing SQL AST and `SelectQuery` pipeline;
 - `galchemy/orm/loading`: model-first loader options for `joinedload` / `selectinload`-style planning;
+- `galchemy/orm/codec`: explicit DB `<->` Gleam type codecs and typed `SqlValue` conversion helpers;
 - `galchemy/orm/result`: explicit result mapping into `entity`, scalar, and tuple shapes on top of `materializer`;
 - `galchemy/orm/metadata`: ORM model metadata derived from `SchemaSnapshot`;
 - `galchemy/orm/hook`: explicit entity lifecycle hook definitions for load, relation hydration, attach, refresh, and staged persistence;
@@ -422,6 +423,8 @@ The current stable surface includes:
 - model-first query helpers, including joins by relation metadata, on top of declarative models and ORM metadata;
 - model-first loader options for `joinedload` / `selectinload`-style planning;
 - explicit result mapping into `entity`, scalar, and tuple shapes;
+- explicit codec layer for DB `<->` Gleam type mapping and typed scalar decoding;
+- composable custom codecs and declarative custom column bindings;
 - ORM model metadata derived from schema snapshots;
 - mapper registry for model metadata reuse;
 - identity map for materialized entities;
