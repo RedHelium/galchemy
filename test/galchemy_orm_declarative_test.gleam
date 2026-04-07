@@ -106,6 +106,72 @@ pub fn declarative_model_identity_override_test() {
   assert next_metadata.identity_columns == ["email"]
 }
 
+pub fn declarative_column_definitions_cover_richer_types_test() {
+  let next_model =
+    declarative.model_(
+      "public",
+      "events",
+      [
+        declarative.primary_key(declarative.big_int("id")),
+        declarative.uuid("external_id"),
+        declarative.varchar("title", option.Some(128)),
+        declarative.numeric("price", option.Some(10), option.Some(2)),
+        declarative.jsonb("payload"),
+        declarative.array("tags", model.TextType),
+        declarative.timestamptz("published_at"),
+        declarative.timetz("published_time"),
+      ],
+      [],
+    )
+
+  let table_schema = expect_table_schema(declarative.to_table_schema(next_model))
+
+  assert column_data_type(table_schema, "id") == option.Some(model.BigIntType)
+  assert column_data_type(table_schema, "external_id")
+    == option.Some(model.UuidType)
+  assert column_data_type(table_schema, "title")
+    == option.Some(model.VarCharType(option.Some(128)))
+  assert column_data_type(table_schema, "price")
+    == option.Some(model.NumericType(
+      precision: option.Some(10),
+      scale: option.Some(2),
+    ))
+  assert column_data_type(table_schema, "payload") == option.Some(model.JsonbType)
+  assert column_data_type(table_schema, "tags")
+    == option.Some(model.ArrayType(item_type: model.TextType))
+  assert column_data_type(table_schema, "published_at")
+    == option.Some(model.TimestampType(with_time_zone: True))
+  assert column_data_type(table_schema, "published_time")
+    == option.Some(model.TimeType(with_time_zone: True))
+}
+
+pub fn declarative_relation_definitions_are_preserved_in_metadata_test() {
+  let next_model =
+    declarative.model_(
+      "public",
+      "users",
+      [
+        declarative.primary_key(declarative.int("id")),
+        declarative.text("name"),
+      ],
+      [
+        declarative.has_many("posts", "posts_user_id_fkey", "public", "posts", [
+          declarative.pair("id", "user_id"),
+        ]),
+      ],
+    )
+
+  let next_metadata = expect_metadata(declarative.to_metadata(next_model))
+  let relation_ = case metadata.relation_named(next_metadata, "posts") {
+    option.Some(value) -> value
+    option.None -> panic as "expected posts relation"
+  }
+
+  assert relation_.kind == relation.HasMany
+  assert relation_.related_table == relation.table_ref("public", "posts")
+  assert relation_.column_pairs == [relation.pair("id", "user_id")]
+}
+
 pub fn declarative_model_validation_errors_test() {
   let duplicate_columns =
     declarative.model_(
@@ -175,6 +241,15 @@ fn expect_snapshot(
   }
 }
 
+fn expect_table_schema(
+  result: Result(model.TableSchema, declarative.DeclarativeError),
+) -> model.TableSchema {
+  case result {
+    Ok(value) -> value
+    Error(_error) -> panic as "unexpected table schema error"
+  }
+}
+
 fn expect_table(
   snapshot: model.SchemaSnapshot,
   schema_name: String,
@@ -188,5 +263,17 @@ fn expect_table(
   case matches {
     [table_schema, ..] -> table_schema
     [] -> panic as "expected table in snapshot"
+  }
+}
+
+fn column_data_type(
+  table_schema: model.TableSchema,
+  column_name: String,
+) -> option.Option(model.ColumnType) {
+  case list.filter(table_schema.columns, fn(column_schema) {
+    column_schema.name == column_name
+  }) {
+    [column_schema, ..] -> option.Some(column_schema.data_type)
+    [] -> option.None
   }
 }

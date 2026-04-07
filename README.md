@@ -63,7 +63,7 @@ The public API is intentionally namespaced by module:
 - `galchemy/schema/ddl/postgres`: PostgreSQL DDL compilation for schema diff operations;
 - `galchemy/schema/migration/postgres`: PostgreSQL migration planning, status tracking, and application helpers;
 - `galchemy/schema/generator/gleam`: Gleam module generation from schema snapshots;
-- `galchemy/orm/declarative`: declarative model definitions that bridge into `SchemaSnapshot` and `ModelMetadata`;
+- `galchemy/orm/declarative`: declarative model definitions with explicit column builders and relation definitions that bridge into `SchemaSnapshot` and `ModelMetadata`;
 - `galchemy/orm/metadata`: ORM model metadata derived from `SchemaSnapshot`;
 - `galchemy/orm/hook`: explicit entity lifecycle hook definitions for load, relation hydration, attach, refresh, and staged persistence;
 - `galchemy/orm/mapper_registry`: mapper registry for ORM model metadata;
@@ -415,7 +415,7 @@ The current stable surface includes:
 - PostgreSQL DDL compilation for schema operations;
 - PostgreSQL migration plans, migration history queries, and transactional apply helpers;
 - Gleam schema module generation from `SchemaSnapshot`, including `relations()` helpers;
-- declarative model definitions that can be converted into `SchemaSnapshot` and ORM metadata;
+- declarative model definitions with explicit column builders and relation definitions that can be converted into `SchemaSnapshot` and ORM metadata;
 - ORM model metadata derived from schema snapshots;
 - mapper registry for model metadata reuse;
 - identity map for materialized entities;
