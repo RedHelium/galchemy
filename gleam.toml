@@ -1,5 +1,5 @@
 name = "galchemy"
-version = "0.1.0"
+version = "3.1.0"
 description = "SQL query builder core for Gleam"
 licences = ["Apache-2.0"]
 repository = { type = "github", user = "RedHelium", repo = "galchemy" }
