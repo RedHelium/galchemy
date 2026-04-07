@@ -29,9 +29,12 @@ pub fn scalar_result_mapping_test() {
   let #(count, _) =
     result.one(
       mapper,
-      result.row([
-        result.scalar("post_count", ast_expression.Int(3)),
-      ], []),
+      result.row(
+        [
+          result.scalar("post_count", ast_expression.Int(3)),
+        ],
+        [],
+      ),
       materializer.new(registry),
     )
     |> expect_mapped
@@ -58,7 +61,9 @@ pub fn entity_result_mapping_test() {
     |> expect_mapped
 
   assert entity.status(loaded_user) == entity.Clean
-  assert list.length(identity_map.values(materializer.identity_map(next_materializer)))
+  assert list.length(
+      identity_map.values(materializer.identity_map(next_materializer)),
+    )
     == 1
 }
 
@@ -72,24 +77,33 @@ pub fn tuple_result_mapping_reuses_identity_map_test() {
       result.scalar_value("post_count"),
     )
   let rows = [
-    result.row([
-      result.scalar("post_count", ast_expression.Int(2)),
-    ], [
-      materializer.row("public", "users", [
-        unit_of_work.field("id", ast_expression.Int(1)),
-        unit_of_work.field("email", ast_expression.Text("ann@example.com")),
-        unit_of_work.field("name", ast_expression.Text("Ann")),
-      ]),
-    ]),
-    result.row([
-      result.scalar("post_count", ast_expression.Int(5)),
-    ], [
-      materializer.row("public", "users", [
-        unit_of_work.field("id", ast_expression.Int(1)),
-        unit_of_work.field("email", ast_expression.Text("changed@example.com")),
-        unit_of_work.field("name", ast_expression.Text("Changed")),
-      ]),
-    ]),
+    result.row(
+      [
+        result.scalar("post_count", ast_expression.Int(2)),
+      ],
+      [
+        materializer.row("public", "users", [
+          unit_of_work.field("id", ast_expression.Int(1)),
+          unit_of_work.field("email", ast_expression.Text("ann@example.com")),
+          unit_of_work.field("name", ast_expression.Text("Ann")),
+        ]),
+      ],
+    ),
+    result.row(
+      [
+        result.scalar("post_count", ast_expression.Int(5)),
+      ],
+      [
+        materializer.row("public", "users", [
+          unit_of_work.field("id", ast_expression.Int(1)),
+          unit_of_work.field(
+            "email",
+            ast_expression.Text("changed@example.com"),
+          ),
+          unit_of_work.field("name", ast_expression.Text("Changed")),
+        ]),
+      ],
+    ),
   ]
   let #(mapped_rows, next_materializer) =
     result.many(mapper, rows, materializer.new(registry))
@@ -127,7 +141,9 @@ pub fn missing_scalar_and_entity_errors_test() {
     == Error(result.MissingEntity(users_metadata))
 }
 
-fn identity_values(next_materializer: materializer.Materializer) -> List(entity.Entity) {
+fn identity_values(
+  next_materializer: materializer.Materializer,
+) -> List(entity.Entity) {
   identity_map.values(materializer.identity_map(next_materializer))
 }
 

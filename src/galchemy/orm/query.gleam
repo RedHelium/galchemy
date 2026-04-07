@@ -28,9 +28,7 @@ pub type QueryError {
   )
 }
 
-pub fn from_model(
-  next_model: declarative.Model,
-) -> Result(ModelRef, QueryError) {
+pub fn from_model(next_model: declarative.Model) -> Result(ModelRef, QueryError) {
   case declarative.to_metadata(next_model) {
     Ok(next_metadata) -> Ok(from_metadata(next_metadata))
     Error(error) -> Error(DeclarativeError(error))
@@ -40,17 +38,19 @@ pub fn from_model(
 pub fn from_metadata(next_metadata: metadata.ModelMetadata) -> ModelRef {
   ModelRef(
     metadata: next_metadata,
-    table:
-      schema.Table(
-        schema: option.Some(next_metadata.table.schema),
-        name: next_metadata.table.name,
-        alias: option.None,
-      ),
+    table: schema.Table(
+      schema: option.Some(next_metadata.table.schema),
+      name: next_metadata.table.name,
+      alias: option.None,
+    ),
   )
 }
 
 pub fn as_(model_ref: ModelRef, alias: String) -> ModelRef {
-  ModelRef(..model_ref, table: schema.Table(..model_ref.table, alias: option.Some(alias)))
+  ModelRef(
+    ..model_ref,
+    table: schema.Table(..model_ref.table, alias: option.Some(alias)),
+  )
 }
 
 pub fn field(column: String) -> Selection {
@@ -299,7 +299,8 @@ fn compare(
   model_ref: ModelRef,
   column_name: String,
   value: expression.Expression,
-  builder: fn(expression.Expression, expression.Expression) -> expression.Predicate,
+  builder: fn(expression.Expression, expression.Expression) ->
+    expression.Predicate,
 ) -> Result(expression.Predicate, QueryError) {
   use column <- result_try(col(model_ref, column_name))
   Ok(builder(column, value))
@@ -310,11 +311,8 @@ fn join_relation(
   model_ref: ModelRef,
   relation_name: String,
   related_model: ModelRef,
-  join_builder: fn(
+  join_builder: fn(expression.SelectQuery, schema.Table, expression.Predicate) ->
     expression.SelectQuery,
-    schema.Table,
-    expression.Predicate,
-  ) -> expression.SelectQuery,
 ) -> Result(expression.SelectQuery, QueryError) {
   use next_relation <- result_try(relation_named(model_ref, relation_name))
   use _ <- result_try(validate_related_model(next_relation, related_model))
@@ -363,12 +361,7 @@ fn join_predicate(
         first_pair,
       ))
 
-      join_predicate_rest(
-        model_ref,
-        related_model,
-        rest,
-        first_predicate,
-      )
+      join_predicate_rest(model_ref, related_model, rest, first_predicate)
     }
   }
 }
@@ -412,9 +405,10 @@ fn column_expression(
   model_ref: ModelRef,
   column_name: String,
 ) -> expression.Expression {
-  expression.ColumnExpr(
-    schema.ColumnMeta(table: model_ref.table, name: column_name),
-  )
+  expression.ColumnExpr(schema.ColumnMeta(
+    table: model_ref.table,
+    name: column_name,
+  ))
 }
 
 fn result_try(value: Result(a, e), next: fn(a) -> Result(b, e)) -> Result(b, e) {

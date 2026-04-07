@@ -59,9 +59,10 @@ pub fn selectinload_builds_has_many_follow_up_query_test() {
     |> expect_queries
     |> compile_queries
 
-  assert compiled_queries == [
-    "SELECT \"public\".\"posts\".\"id\", \"public\".\"posts\".\"user_id\", \"public\".\"posts\".\"title\" FROM \"public\".\"posts\" WHERE ((\"public\".\"posts\".\"user_id\" = $1) OR (\"public\".\"posts\".\"user_id\" = $2))",
-  ]
+  assert compiled_queries
+    == [
+      "SELECT \"public\".\"posts\".\"id\", \"public\".\"posts\".\"user_id\", \"public\".\"posts\".\"title\" FROM \"public\".\"posts\" WHERE ((\"public\".\"posts\".\"user_id\" = $1) OR (\"public\".\"posts\".\"user_id\" = $2))",
+    ]
 }
 
 pub fn selectinload_builds_belongs_to_follow_up_query_test() {
@@ -80,9 +81,10 @@ pub fn selectinload_builds_belongs_to_follow_up_query_test() {
     |> expect_queries
     |> compile_queries
 
-  assert compiled_queries == [
-    "SELECT \"public\".\"users\".\"id\", \"public\".\"users\".\"email\", \"public\".\"users\".\"name\" FROM \"public\".\"users\" WHERE ((\"public\".\"users\".\"id\" = $1) OR (\"public\".\"users\".\"id\" = $2))",
-  ]
+  assert compiled_queries
+    == [
+      "SELECT \"public\".\"users\".\"id\", \"public\".\"users\".\"email\", \"public\".\"users\".\"name\" FROM \"public\".\"users\" WHERE ((\"public\".\"users\".\"id\" = $1) OR (\"public\".\"users\".\"id\" = $2))",
+    ]
 }
 
 pub fn selectinload_missing_parent_field_error_test() {
@@ -146,7 +148,8 @@ fn post_model() -> declarative.Model {
 }
 
 fn user_entity(id: Int, email: String, name: String) -> entity.Entity {
-  let users_metadata = user_model() |> declarative.to_metadata |> expect_metadata
+  let users_metadata =
+    user_model() |> declarative.to_metadata |> expect_metadata
 
   entity.materialize(users_metadata, [
     unit_of_work.field("id", ast_expression.Int(id)),
@@ -157,7 +160,8 @@ fn user_entity(id: Int, email: String, name: String) -> entity.Entity {
 }
 
 fn post_entity(id: Int, user_id: Int, title: String) -> entity.Entity {
-  let posts_metadata = post_model() |> declarative.to_metadata |> expect_metadata
+  let posts_metadata =
+    post_model() |> declarative.to_metadata |> expect_metadata
 
   entity.materialize(posts_metadata, [
     unit_of_work.field("id", ast_expression.Int(id)),

@@ -124,7 +124,8 @@ pub fn declarative_column_definitions_cover_richer_types_test() {
       [],
     )
 
-  let table_schema = expect_table_schema(declarative.to_table_schema(next_model))
+  let table_schema =
+    expect_table_schema(declarative.to_table_schema(next_model))
 
   assert column_data_type(table_schema, "id") == option.Some(model.BigIntType)
   assert column_data_type(table_schema, "external_id")
@@ -136,7 +137,8 @@ pub fn declarative_column_definitions_cover_richer_types_test() {
       precision: option.Some(10),
       scale: option.Some(2),
     ))
-  assert column_data_type(table_schema, "payload") == option.Some(model.JsonbType)
+  assert column_data_type(table_schema, "payload")
+    == option.Some(model.JsonbType)
   assert column_data_type(table_schema, "tags")
     == option.Some(model.ArrayType(item_type: model.TextType))
   assert column_data_type(table_schema, "published_at")
@@ -270,9 +272,11 @@ fn column_data_type(
   table_schema: model.TableSchema,
   column_name: String,
 ) -> option.Option(model.ColumnType) {
-  case list.filter(table_schema.columns, fn(column_schema) {
-    column_schema.name == column_name
-  }) {
+  case
+    list.filter(table_schema.columns, fn(column_schema) {
+      column_schema.name == column_name
+    })
+  {
     [column_schema, ..] -> option.Some(column_schema.data_type)
     [] -> option.None
   }

@@ -33,9 +33,7 @@ pub fn map(
   encoder_map: fn(b) -> a,
 ) -> Codec(b) {
   Codec(
-    encode: fn(value) {
-      encode(base, encoder_map(value))
-    },
+    encode: fn(value) { encode(base, encoder_map(value)) },
     decode: fn(value) {
       use decoded <- result_try(decode(base, value))
       decoder_map(decoded)
@@ -58,156 +56,113 @@ pub fn sql_type_name(next_custom_codec: CustomCodec(a)) -> String {
 }
 
 pub fn int() -> Codec(Int) {
-  Codec(
-    encode: expression.Int,
-    decode: fn(value) {
-      case value {
-        expression.Int(inner) -> Ok(inner)
-        _ -> Error(UnexpectedType(expected: "Int", actual: type_name(value)))
-      }
-    },
-  )
+  Codec(encode: expression.Int, decode: fn(value) {
+    case value {
+      expression.Int(inner) -> Ok(inner)
+      _ -> Error(UnexpectedType(expected: "Int", actual: type_name(value)))
+    }
+  })
 }
 
 pub fn text() -> Codec(String) {
-  Codec(
-    encode: expression.Text,
-    decode: fn(value) {
-      case value {
-        expression.Text(inner) -> Ok(inner)
-        _ -> Error(UnexpectedType(expected: "Text", actual: type_name(value)))
-      }
-    },
-  )
+  Codec(encode: expression.Text, decode: fn(value) {
+    case value {
+      expression.Text(inner) -> Ok(inner)
+      _ -> Error(UnexpectedType(expected: "Text", actual: type_name(value)))
+    }
+  })
 }
 
 pub fn float() -> Codec(Float) {
-  Codec(
-    encode: expression.Float,
-    decode: fn(value) {
-      case value {
-        expression.Float(inner) -> Ok(inner)
-        _ -> Error(UnexpectedType(expected: "Float", actual: type_name(value)))
-      }
-    },
-  )
+  Codec(encode: expression.Float, decode: fn(value) {
+    case value {
+      expression.Float(inner) -> Ok(inner)
+      _ -> Error(UnexpectedType(expected: "Float", actual: type_name(value)))
+    }
+  })
 }
 
 pub fn bytea() -> Codec(BitArray) {
-  Codec(
-    encode: expression.Bytea,
-    decode: fn(value) {
-      case value {
-        expression.Bytea(inner) -> Ok(inner)
-        _ -> Error(UnexpectedType(expected: "Bytea", actual: type_name(value)))
-      }
-    },
-  )
+  Codec(encode: expression.Bytea, decode: fn(value) {
+    case value {
+      expression.Bytea(inner) -> Ok(inner)
+      _ -> Error(UnexpectedType(expected: "Bytea", actual: type_name(value)))
+    }
+  })
 }
 
 pub fn uuid() -> Codec(String) {
-  Codec(
-    encode: expression.Uuid,
-    decode: fn(value) {
-      case value {
-        expression.Uuid(inner) -> Ok(inner)
-        _ -> Error(UnexpectedType(expected: "Uuid", actual: type_name(value)))
-      }
-    },
-  )
+  Codec(encode: expression.Uuid, decode: fn(value) {
+    case value {
+      expression.Uuid(inner) -> Ok(inner)
+      _ -> Error(UnexpectedType(expected: "Uuid", actual: type_name(value)))
+    }
+  })
 }
 
 pub fn numeric() -> Codec(String) {
-  Codec(
-    encode: expression.Numeric,
-    decode: fn(value) {
-      case value {
-        expression.Numeric(inner) -> Ok(inner)
-        _ ->
-          Error(UnexpectedType(expected: "Numeric", actual: type_name(value)))
-      }
-    },
-  )
+  Codec(encode: expression.Numeric, decode: fn(value) {
+    case value {
+      expression.Numeric(inner) -> Ok(inner)
+      _ -> Error(UnexpectedType(expected: "Numeric", actual: type_name(value)))
+    }
+  })
 }
 
 pub fn json() -> Codec(String) {
-  Codec(
-    encode: expression.Json,
-    decode: fn(value) {
-      case value {
-        expression.Json(inner) -> Ok(inner)
-        _ -> Error(UnexpectedType(expected: "Json", actual: type_name(value)))
-      }
-    },
-  )
+  Codec(encode: expression.Json, decode: fn(value) {
+    case value {
+      expression.Json(inner) -> Ok(inner)
+      _ -> Error(UnexpectedType(expected: "Json", actual: type_name(value)))
+    }
+  })
 }
 
 pub fn jsonb() -> Codec(String) {
-  Codec(
-    encode: expression.Jsonb,
-    decode: fn(value) {
-      case value {
-        expression.Jsonb(inner) -> Ok(inner)
-        _ -> Error(UnexpectedType(expected: "Jsonb", actual: type_name(value)))
-      }
-    },
-  )
+  Codec(encode: expression.Jsonb, decode: fn(value) {
+    case value {
+      expression.Jsonb(inner) -> Ok(inner)
+      _ -> Error(UnexpectedType(expected: "Jsonb", actual: type_name(value)))
+    }
+  })
 }
 
 pub fn bool() -> Codec(Bool) {
-  Codec(
-    encode: expression.Bool,
-    decode: fn(value) {
-      case value {
-        expression.Bool(inner) -> Ok(inner)
-        _ -> Error(UnexpectedType(expected: "Bool", actual: type_name(value)))
-      }
-    },
-  )
+  Codec(encode: expression.Bool, decode: fn(value) {
+    case value {
+      expression.Bool(inner) -> Ok(inner)
+      _ -> Error(UnexpectedType(expected: "Bool", actual: type_name(value)))
+    }
+  })
 }
 
 pub fn timestamp() -> Codec(Timestamp) {
-  Codec(
-    encode: expression.Timestamp,
-    decode: fn(value) {
-      case value {
-        expression.Timestamp(inner) -> Ok(inner)
-        _ ->
-          Error(UnexpectedType(
-            expected: "Timestamp",
-            actual: type_name(value),
-          ))
-      }
-    },
-  )
+  Codec(encode: expression.Timestamp, decode: fn(value) {
+    case value {
+      expression.Timestamp(inner) -> Ok(inner)
+      _ ->
+        Error(UnexpectedType(expected: "Timestamp", actual: type_name(value)))
+    }
+  })
 }
 
 pub fn date() -> Codec(Date) {
-  Codec(
-    encode: expression.Date,
-    decode: fn(value) {
-      case value {
-        expression.Date(inner) -> Ok(inner)
-        _ -> Error(UnexpectedType(expected: "Date", actual: type_name(value)))
-      }
-    },
-  )
+  Codec(encode: expression.Date, decode: fn(value) {
+    case value {
+      expression.Date(inner) -> Ok(inner)
+      _ -> Error(UnexpectedType(expected: "Date", actual: type_name(value)))
+    }
+  })
 }
 
 pub fn time_of_day() -> Codec(TimeOfDay) {
-  Codec(
-    encode: expression.TimeOfDay,
-    decode: fn(value) {
-      case value {
-        expression.TimeOfDay(inner) -> Ok(inner)
-        _ ->
-          Error(UnexpectedType(
-            expected: "TimeOfDay",
-            actual: type_name(value),
-          ))
-      }
-    },
-  )
+  Codec(encode: expression.TimeOfDay, decode: fn(value) {
+    case value {
+      expression.TimeOfDay(inner) -> Ok(inner)
+      _ ->
+        Error(UnexpectedType(expected: "TimeOfDay", actual: type_name(value)))
+    }
+  })
 }
 
 pub fn array(inner: Codec(a)) -> Codec(List(a)) {
@@ -217,9 +172,8 @@ pub fn array(inner: Codec(a)) -> Codec(List(a)) {
     },
     decode: fn(value) {
       case value {
-        expression.Array(values) -> list.try_map(values, fn(item) {
-          decode(inner, item)
-        })
+        expression.Array(values) ->
+          list.try_map(values, fn(item) { decode(inner, item) })
         _ -> Error(UnexpectedType(expected: "Array", actual: type_name(value)))
       }
     },

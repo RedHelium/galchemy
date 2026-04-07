@@ -227,15 +227,17 @@ pub fn to_table_schema(
 ) -> Result(model.TableSchema, DeclarativeError) {
   use validated_model <- result_try(validate(next_model))
 
-  Ok(model.TableSchema(
-    schema: validated_model.table.schema,
-    name: validated_model.table.name,
-    columns: column_schemas(validated_model.columns, 1, []),
-    primary_key: primary_key_schema(validated_model),
-    unique_constraints: unique_constraints(validated_model),
-    foreign_keys: foreign_keys(validated_model.relations),
-    indexes: [],
-  ))
+  Ok(
+    model.TableSchema(
+      schema: validated_model.table.schema,
+      name: validated_model.table.name,
+      columns: column_schemas(validated_model.columns, 1, []),
+      primary_key: primary_key_schema(validated_model),
+      unique_constraints: unique_constraints(validated_model),
+      foreign_keys: foreign_keys(validated_model.relations),
+      indexes: [],
+    ),
+  )
 }
 
 pub fn to_snapshot(
@@ -257,17 +259,17 @@ fn column(name: String, data_type: model.ColumnType) -> Column {
 }
 
 fn validate(next_model: Model) -> Result(Model, DeclarativeError) {
-  use _ <- result_try(validate_columns(
-    next_model.table,
-    next_model.columns,
-    [],
-  ))
-  use _ <- result_try(validate_relations(
-    next_model.table,
-    next_model.columns,
-    next_model.relations,
-    [],
-  ))
+  use _ <- result_try(
+    validate_columns(next_model.table, next_model.columns, []),
+  )
+  use _ <- result_try(
+    validate_relations(
+      next_model.table,
+      next_model.columns,
+      next_model.relations,
+      [],
+    ),
+  )
   use _ <- result_try(validate_identity(next_model))
 
   Ok(next_model)
@@ -311,12 +313,7 @@ fn validate_relations(
             next_relation.column_pairs,
           ))
 
-          validate_relations(
-            table,
-            columns,
-            rest,
-            [next_relation.name, ..known],
-          )
+          validate_relations(table, columns, rest, [next_relation.name, ..known])
         }
       }
     }
@@ -473,7 +470,9 @@ fn unique_constraints(next_model: Model) -> List(model.UniqueConstraint) {
   })
 }
 
-fn relation_metadata(relations: List(RelationDefinition)) -> List(relation.Relation) {
+fn relation_metadata(
+  relations: List(RelationDefinition),
+) -> List(relation.Relation) {
   list.map(relations, fn(next_relation) {
     case next_relation.kind {
       BelongsTo ->
@@ -505,9 +504,10 @@ fn foreign_keys(relations: List(RelationDefinition)) -> List(model.ForeignKey) {
           }),
           referenced_schema: next_relation.related_table.schema,
           referenced_table: next_relation.related_table.name,
-          referenced_columns: list.map(next_relation.column_pairs, fn(next_pair) {
-            next_pair.related_column
-          }),
+          referenced_columns: list.map(
+            next_relation.column_pairs,
+            fn(next_pair) { next_pair.related_column },
+          ),
         ))
       HasMany -> Error(Nil)
     }

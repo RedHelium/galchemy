@@ -13,7 +13,8 @@ pub fn main() -> Nil {
 }
 
 pub fn runtime_registry_from_snapshot_test() {
-  let registry = expect_registry(runtime_registry.from_snapshot(blog_snapshot()))
+  let registry =
+    expect_registry(runtime_registry.from_snapshot(blog_snapshot()))
 
   assert list.length(runtime_registry.all(registry)) == 2
   assert runtime_registry.has_column(registry, "public", "users", "email")
@@ -76,29 +77,31 @@ pub fn runtime_registry_from_models_and_mapper_registry_test() {
 
   assert list.length(runtime_registry.snapshot(registry).tables) == 2
   assert runtime_registry.table_schema(registry, "public", "posts")
-    == Ok(model.TableSchema(
-      schema: "public",
-      name: "posts",
-      columns: [
-        column("id", model.IntegerType, False, option.None, 1),
-        column("user_id", model.IntegerType, False, option.None, 2),
-        column("title", model.TextType, False, option.None, 3),
-      ],
-      primary_key: option.Some(
-        model.PrimaryKey(name: "posts_pkey", columns: ["id"]),
-      ),
-      unique_constraints: [],
-      foreign_keys: [
-        model.ForeignKey(
-          name: "posts_user_id_fkey",
-          columns: ["user_id"],
-          referenced_schema: "public",
-          referenced_table: "users",
-          referenced_columns: ["id"],
+    == Ok(
+      model.TableSchema(
+        schema: "public",
+        name: "posts",
+        columns: [
+          column("id", model.IntegerType, False, option.None, 1),
+          column("user_id", model.IntegerType, False, option.None, 2),
+          column("title", model.TextType, False, option.None, 3),
+        ],
+        primary_key: option.Some(
+          model.PrimaryKey(name: "posts_pkey", columns: ["id"]),
         ),
-      ],
-      indexes: [],
-    ))
+        unique_constraints: [],
+        foreign_keys: [
+          model.ForeignKey(
+            name: "posts_user_id_fkey",
+            columns: ["user_id"],
+            referenced_schema: "public",
+            referenced_table: "users",
+            referenced_columns: ["id"],
+          ),
+        ],
+        indexes: [],
+      ),
+    )
   assert mapper_registry.get(mapper_registry_, "public", "users")
     |> result_is_ok
 }
@@ -116,13 +119,13 @@ pub fn runtime_registry_duplicate_and_unknown_model_errors_test() {
   let registry = expect_registry(runtime_registry.from_models([users]))
 
   assert runtime_registry.register_model(registry, users)
-    == Error(runtime_registry.DuplicateModel(
-      relation.table_ref("public", "users"),
-    ))
+    == Error(
+      runtime_registry.DuplicateModel(relation.table_ref("public", "users")),
+    )
   assert runtime_registry.get(registry, "public", "posts")
-    == Error(runtime_registry.UnknownModel(
-      relation.table_ref("public", "posts"),
-    ))
+    == Error(
+      runtime_registry.UnknownModel(relation.table_ref("public", "posts")),
+    )
 }
 
 fn blog_snapshot() -> model.SchemaSnapshot {
@@ -179,7 +182,10 @@ fn column(
 }
 
 fn expect_registry(
-  result: Result(runtime_registry.RuntimeRegistry, runtime_registry.RegistryError),
+  result: Result(
+    runtime_registry.RuntimeRegistry,
+    runtime_registry.RegistryError,
+  ),
 ) -> runtime_registry.RuntimeRegistry {
   case result {
     Ok(value) -> value
@@ -188,7 +194,10 @@ fn expect_registry(
 }
 
 fn expect_lookup(
-  result: Result(option.Option(relation.Relation), runtime_registry.RegistryError),
+  result: Result(
+    option.Option(relation.Relation),
+    runtime_registry.RegistryError,
+  ),
 ) -> option.Option(relation.Relation) {
   case result {
     Ok(value) -> value

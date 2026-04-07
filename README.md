@@ -3,119 +3,26 @@
 [![Package Version](https://img.shields.io/hexpm/v/galchemy)](https://hex.pm/packages/galchemy)
 [![Hex Docs](https://img.shields.io/badge/hex-docs-ffaff3)](https://hexdocs.pm/galchemy/)
 
-`galchemy` is a PostgreSQL-first SQL query builder, schema tooling, and explicit ORM foundation library for Gleam.
+`galchemy` is a PostgreSQL-first SQL toolkit for Gleam:
 
-It is built around a small set of explicit ideas:
+- SQL DSL (`select`, `insert`, `update`, `delete`);
+- SQL compiler (`AST -> SQL + params`);
+- PostgreSQL execution helpers (`pog`);
+- schema introspection, diff, DDL, and migration planning;
+- explicit ORM/session building blocks.
 
-- immutable builders;
-- an explicit SQL AST;
-- predictable compilation into `SQL + params`;
-- direct integration with `pog`;
-- a clear boundary between query construction and query execution.
+The design goal is explicitness:
+
+- you build immutable query values;
+- you compile explicitly;
+- you execute explicitly;
+- no hidden query execution or Active Record-style magic.
 
 ## Installation
 
 ```sh
 gleam add galchemy
 ```
-
-## What It Is
-
-`galchemy` is a SQL-first query builder core with explicit ORM building blocks layered on top.
-
-It helps you:
-
-- describe tables and columns with typed schema references;
-- build `select`, `insert`, `update`, and `delete` queries immutably;
-- compile queries into SQL with positional parameters;
-- execute compiled queries through `pog`.
-- introspect PostgreSQL schemas into typed snapshots;
-- infer relation metadata from foreign keys;
-- diff schema snapshots into explicit change operations;
-- compile and apply PostgreSQL migration plans.
-- generate Gleam schema modules from PostgreSQL schema snapshots.
-- plan session flushes into ordered `insert` / `update` / `delete` queries.
-- plan eager joins and lazy follow-up queries from relation metadata.
-- derive ORM metadata from schema snapshots;
-- materialize entities, track entity state, and stage them into `unit_of_work`.
-
-It does not try to manage:
-
-- hidden SQL execution;
-- implicit Active Record magic;
-- dialect abstraction.
-
-## Public API
-
-The public API is intentionally namespaced by module:
-
-- `galchemy/dsl/table`: tables, columns, schemas, aliases;
-- `galchemy/dsl/expr`: SQL expressions and `SelectItem`;
-- `galchemy/dsl/predicate`: predicates for `where` and `join on`;
-- `galchemy/dsl/select`: `select` query builder;
-- `galchemy/dsl/insert`: `insert` query builder;
-- `galchemy/dsl/update`: `update` query builder;
-- `galchemy/dsl/delete`: `delete` query builder;
-- `galchemy/schema/model`: schema snapshot types for future diffing and generation tooling;
-- `galchemy/schema/introspection/postgres`: PostgreSQL schema introspection into schema snapshots;
-- `galchemy/schema/relation`: relation metadata and relation inference from schema snapshots;
-- `galchemy/schema/diff`: schema snapshot comparison into explicit change operations;
-- `galchemy/schema/ddl/postgres`: PostgreSQL DDL compilation for schema diff operations;
-- `galchemy/schema/migration/postgres`: PostgreSQL migration planning, status tracking, and application helpers;
-- `galchemy/schema/generator/gleam`: Gleam module generation from schema snapshots;
-- `galchemy/orm/declarative`: declarative model definitions with explicit column builders and relation definitions that bridge into `SchemaSnapshot` and `ModelMetadata`;
-- `galchemy/orm/query`: model-first query helpers, including joins by relation metadata, that compile into the existing SQL AST and `SelectQuery` pipeline;
-- `galchemy/orm/loading`: model-first loader options for `joinedload` / `selectinload`-style planning;
-- `galchemy/orm/codec`: explicit DB `<->` Gleam type codecs and typed `SqlValue` conversion helpers;
-- `galchemy/orm/runtime_registry`: runtime registry that binds `SchemaSnapshot`, `ModelMetadata`, and registered ORM models together;
-- `galchemy/orm/result`: explicit result mapping into `entity`, scalar, and tuple shapes on top of `materializer`;
-- `galchemy/orm/metadata`: ORM model metadata derived from `SchemaSnapshot`;
-- `galchemy/orm/hook`: explicit entity lifecycle hook definitions for load, relation hydration, attach, refresh, and staged persistence;
-- `galchemy/orm/mapper_registry`: mapper registry for ORM model metadata;
-- `galchemy/orm/identity_map`: identity map for materialized entities;
-- `galchemy/orm/materializer`: row-to-entity materialization pipeline on top of mapper metadata and identity map;
-- `galchemy/orm/graph`: relation graph hydration on top of entity metadata and identity map;
-- `galchemy/orm/entity`: entity materialization, state tracking, and staging into `unit_of_work`;
-- `galchemy/session/execution`: generic flush execution on top of `unit_of_work` planning;
-- `galchemy/session/runtime`: explicit session state with `track`, `attach`, `stage`, `detach`, `refresh`, `flush`, `commit`, and `rollback`;
-- `galchemy/session/cascade`: explicit cascade planning for staged relation graphs;
-- `galchemy/session/transaction`: generic transaction-aware lifecycle over `runtime.Session`;
-- `galchemy/session/postgres`: PostgreSQL transaction helpers on top of `pog.transaction`;
-- `galchemy/session/unit_of_work`: session-style change tracking and ordered flush planning into query AST values;
-- `galchemy/session/loading`: eager and lazy loading planners on top of relation metadata;
-- `galchemy/sql/compiler`: AST to `SQL + params` compilation, including `compile_with` and compiler config hooks;
-- `galchemy/sql/postgres`: PostgreSQL runtime adapter on top of `pog`;
-- `galchemy`: top-level facade for generic compiler entry points only.
-
-### Naming
-
-The public naming scheme is intentionally fixed:
-
-- SQL-like builder names stay SQL-like: `select`, `from`, `insert_into`, `update`, `delete_from`, `returning`;
-- names that would conflict with Gleam or read awkwardly use a trailing underscore: `as_`, `where_`;
-- join functions are explicit by join kind: `inner_join`, `left_join`;
-- expression helpers stay short and direct: `col`, `item`, `text`, `int`, `float`, `bool`, `timestamp`, `date`, `time_of_day`, `null`;
-- aggregate and function helpers build on top of expression composition: `count`, `count_all`, `sum`, `avg`, `min`, `max`, `lower`, `upper`, `coalesce`.
-
-## Architecture
-
-The runtime split is deliberate:
-
-- `galchemy/sql/compiler` is the general compiler layer that turns AST values into `CompiledQuery`;
-- `galchemy/sql/compiler.compile_with` and `CompilerConfig` are the explicit extension points for identifier rendering and function-name validation;
-- `galchemy/sql/postgres` is the PostgreSQL adapter layer that turns `CompiledQuery` and `SqlValue` into `pog.Query`, `pog.Value`, and execution calls.
-
-This keeps SQL compilation separate from PostgreSQL runtime concerns and avoids mixing PostgreSQL-specific execution helpers into the root module.
-
-## Identifier Strategy
-
-As of `1.5`, `galchemy` uses automatic identifier quoting:
-
-- table names, schema names, column names, and aliases are always emitted as quoted identifiers;
-- embedded double quotes are escaped by doubling them;
-- SQL function names are not quoted and are validated separately from identifiers.
-
-This gives the library a predictable PostgreSQL-safe rendering strategy for identifiers while keeping function calls readable.
 
 ## Quick Start
 
@@ -126,348 +33,196 @@ import galchemy/dsl/expr
 import galchemy/dsl/predicate
 import galchemy/dsl/select
 import galchemy/dsl/table
+import gleam/io
+import gleam/string
 
-pub fn build_query() {
+pub fn main() -> Nil {
   let users = table.as_(table.table("users"), "u")
   let id = table.int(users, "id")
   let name = table.text(users, "name")
   let active = table.bool(users, "active")
 
-  select.select([
-    expr.item(expr.col(id)),
-    expr.as_(expr.col(name), "user_name"),
-  ])
-  |> select.from(users)
-  |> select.where_(predicate.eq(expr.col(active), expr.bool(True)))
-  |> query.Select
-  |> galchemy.compile
+  let q =
+    select.select([
+      expr.item(expr.col(id)),
+      expr.item(expr.col(name)),
+    ])
+    |> select.from(users)
+    |> select.where_(predicate.eq(expr.col(active), expr.bool(True)))
+    |> query.Select
+
+  io.println(string.inspect(galchemy.compile(q)))
 }
 ```
 
-## Real Scenarios
+## Core Workflow
+
+1. Define table/column references with `galchemy/dsl/table`.
+2. Build query AST values with `galchemy/dsl/*`.
+3. Compile with `galchemy.compile` (or `compile_with`).
+4. Optionally execute through `galchemy/sql/postgres`.
+
+## Example Catalog
+
+All runnable examples live in `src/galchemy/examples/*`.  
+Root `examples/*` contains matching entry-point wrappers.
+
+| Scenario | Module |
+| --- | --- |
+| Simple select + decoder | `galchemy/examples/simple_select` |
+| CRUD builders | `galchemy/examples/crud` |
+| Joins | `galchemy/examples/join_example` |
+| `RETURNING` | `galchemy/examples/returning_example` |
+| Advanced SQL (`CTE`, derived source/join, subquery, window, `UNION ALL`) | `galchemy/examples/advanced_select` |
+| Schema diff + migration plan + code generation | `galchemy/examples/schema_tooling` |
+| PostgreSQL schema introspection | `galchemy/examples/schema_introspection` |
+| Eager/lazy loading planners | `galchemy/examples/loading` |
+| Entity + unit of work + runtime session | `galchemy/examples/orm` |
+| Declarative models + model-first query + result mapping | `galchemy/examples/orm_declarative` |
+
+Run them with:
+
+```sh
+gleam run -m galchemy/examples/simple_select
+gleam run -m galchemy/examples/crud
+gleam run -m galchemy/examples/join_example
+gleam run -m galchemy/examples/returning_example
+gleam run -m galchemy/examples/advanced_select
+gleam run -m galchemy/examples/schema_tooling
+gleam run -m galchemy/examples/schema_introspection
+gleam run -m galchemy/examples/loading
+gleam run -m galchemy/examples/orm
+gleam run -m galchemy/examples/orm_declarative
+```
+
+## SQL DSL Highlights
 
 ### CRUD
 
-A full CRUD example is available in [`src/galchemy/examples/crud.gleam`](./src/galchemy/examples/crud.gleam).
+Use dedicated modules:
 
-```gleam
-import galchemy
-import galchemy/ast/query
-import galchemy/dsl/delete
-import galchemy/dsl/expr
-import galchemy/dsl/insert
-import galchemy/dsl/predicate
-import galchemy/dsl/select
-import galchemy/dsl/table
-import galchemy/dsl/update
+- `galchemy/dsl/select`
+- `galchemy/dsl/insert`
+- `galchemy/dsl/update`
+- `galchemy/dsl/delete`
 
-pub fn build_crud_queries() {
-  let users = table.table("users")
-  let id = table.int(users, "id")
-  let name = table.text(users, "name")
-  let active = table.bool(users, "active")
+Each builder is immutable and returns a new query value.
 
-  let select_query =
-    select.select([expr.item(expr.col(id)), expr.item(expr.col(name))])
-    |> select.from(users)
-    |> select.where_(predicate.eq(expr.col(active), expr.bool(True)))
+### Predicates and Expressions
 
-  let insert_query =
-    insert.insert_into(users)
-    |> insert.value(id, expr.int(1))
-    |> insert.value(name, expr.text("Ann"))
-    |> insert.returning([expr.item(expr.col(id))])
+`galchemy/dsl/predicate` supports:
 
-  let update_query =
-    update.update(users)
-    |> update.set(name, expr.text("Bob"))
-    |> update.where_(predicate.eq(expr.col(id), expr.int(1)))
+- comparisons: `eq`, `neq`, `gt`, `gte`, `lt`, `lte`;
+- boolean composition: `and`, `or`, `not`;
+- `in_list`, `in_subquery`;
+- `is_null`, `is_not_null`;
+- `like`, `ilike`.
 
-  let delete_query =
-    delete.delete_from(users)
-    |> delete.where_(predicate.eq(expr.col(id), expr.int(1)))
+`galchemy/dsl/expr` supports:
 
-  #(
-    galchemy.compile(query.Select(select_query)),
-    galchemy.compile(query.Insert(insert_query)),
-    galchemy.compile(query.Update(update_query)),
-    galchemy.compile(query.Delete(delete_query)),
-  )
-}
-```
+- literals (`text`, `int`, `bool`, `float`, `timestamp`, `date`, `time_of_day`, `null`);
+- scalar functions (`call`, `lower`, `upper`, `coalesce`);
+- aggregates (`count`, `count_all`, `sum`, `avg`, `min`, `max`);
+- arithmetic and concatenation;
+- window expressions via `over`.
 
-### Joined Read Model
+### Advanced Select Features
 
-A dedicated join example is available in [`src/galchemy/examples/join_example.gleam`](./src/galchemy/examples/join_example.gleam).
+Supported select composition:
 
-```gleam
-import galchemy
-import galchemy/ast/query
-import galchemy/dsl/expr
-import galchemy/dsl/predicate
-import galchemy/dsl/select
-import galchemy/dsl/table
+- `with_cte`;
+- `from_derived`, `inner_join_derived`, `left_join_derived`;
+- `group_by`, `having`;
+- `union`, `union_all`;
+- `distinct`, `order_by`, `limit`, `offset`.
 
-pub fn build_query() {
-  let users = table.as_(table.table("users"), "u")
-  let posts = table.as_(table.table("posts"), "p")
-  let user_id = table.int(users, "id")
-  let user_name = table.text(users, "name")
-  let post_user_id = table.int(posts, "user_id")
+See `galchemy/examples/advanced_select` for a combined real-world example.
 
-  select.select([
-    expr.item(expr.col(user_id)),
-    expr.item(expr.col(user_name)),
-    expr.as_(expr.col(post_user_id), "author_id"),
-  ])
-  |> select.from(users)
-  |> select.inner_join(
-    posts,
-    predicate.eq(expr.col(user_id), expr.col(post_user_id)),
-  )
-  |> query.Select
-  |> galchemy.compile
-}
-```
+## PostgreSQL Execution
 
-### `RETURNING`
-
-A dedicated `returning` example is available in [`src/galchemy/examples/returning_example.gleam`](./src/galchemy/examples/returning_example.gleam).
-
-```gleam
-import galchemy
-import galchemy/ast/query
-import galchemy/dsl/expr
-import galchemy/dsl/insert
-import galchemy/dsl/table
-
-pub fn build_insert() {
-  let users = table.table("users")
-  let id = table.int(users, "id")
-  let name = table.text(users, "name")
-
-  insert.insert_into(users)
-  |> insert.value(name, expr.text("Ann"))
-  |> insert.returning([
-    expr.item(expr.col(id)),
-    expr.item(expr.col(name)),
-  ])
-  |> query.Insert
-  |> galchemy.compile
-}
-```
-
-### Reporting Query With `group_by` / `having`
-
-```gleam
-import galchemy
-import galchemy/ast/query
-import galchemy/dsl/expr
-import galchemy/dsl/predicate
-import galchemy/dsl/select
-import galchemy/dsl/table
-
-pub fn active_user_report() {
-  let users = table.as_(table.table("users"), "u")
-  let active = table.bool(users, "active")
-  let id = table.int(users, "id")
-
-  select.select([
-    expr.item(expr.col(active)),
-    expr.as_(expr.count(expr.col(id)), "user_count"),
-  ])
-  |> select.from(users)
-  |> select.group_by(expr.col(active))
-  |> select.having(predicate.gt(expr.count(expr.col(id)), expr.int(1)))
-  |> query.Select
-  |> galchemy.compile
-}
-```
-
-### Batch Insert
-
-```gleam
-import galchemy
-import galchemy/ast/query
-import galchemy/dsl/expr
-import galchemy/dsl/insert
-import galchemy/dsl/table
-
-pub fn batch_insert() {
-  let users = table.table("users")
-  let id = table.int(users, "id")
-  let name = table.text(users, "name")
-
-  insert.insert_into(users)
-  |> insert.values([
-    [
-      insert.field(id, expr.int(1)),
-      insert.field(name, expr.text("Ann")),
-    ],
-    [
-      insert.field(id, expr.int(2)),
-      insert.field(name, expr.text("Bob")),
-    ],
-  ])
-  |> query.Insert
-  |> galchemy.compile
-}
-```
-
-### Schema-Qualified Tables
-
-```gleam
-import galchemy
-import galchemy/ast/query
-import galchemy/dsl/expr
-import galchemy/dsl/select
-import galchemy/dsl/table
-
-pub fn analytics_query() {
-  let users =
-    table.table("users")
-    |> table.in_schema("analytics")
-    |> table.as_("u")
-  let id = table.int(users, "id")
-
-  select.select([expr.item(expr.col(id))])
-  |> select.from(users)
-  |> query.Select
-  |> galchemy.compile
-}
-```
-
-### Executing Through `pog`
+`galchemy/sql/postgres` bridges compiled queries to `pog`.
 
 ```gleam
 import galchemy/ast/query
-import galchemy/dsl/expr
-import galchemy/dsl/predicate
-import galchemy/dsl/select
-import galchemy/dsl/table
 import galchemy/sql/postgres
 import gleam/dynamic/decode
 import pog
 
-pub fn run(connection: pog.Connection) {
-  let users = table.as_(table.table("users"), "u")
-  let id = table.int(users, "id")
-  let name = table.text(users, "name")
-
-  let decoder =
-    decode.at([0], decode.int)
-    |> decode.then(fn(id) {
-      decode.at([1], decode.string)
-      |> decode.map(fn(name) { #(id, name) })
-    })
-
-  select.select([
-    expr.item(expr.col(id)),
-    expr.item(expr.col(name)),
-  ])
-  |> select.from(users)
-  |> select.where_(predicate.eq(expr.col(id), expr.int(1)))
-  |> query.Select
-  |> fn(q) { postgres.execute_with(q, decoder, connection) }
+pub fn run(connection: pog.Connection, q: query.Query) {
+  let decoder = decode.at([0], decode.int)
+  postgres.execute_with(q, decoder, connection)
 }
 ```
 
-## Example Modules
+## Schema Tooling
 
-The `src/galchemy/examples` directory now covers more than the core CRUD path:
+`galchemy` can help with the full schema pipeline:
 
-- [`src/galchemy/examples/simple_select.gleam`](./src/galchemy/examples/simple_select.gleam): minimal `select` query plus `pog` decoder entry point without hardcoded connection bootstrapping.
-- [`src/galchemy/examples/crud.gleam`](./src/galchemy/examples/crud.gleam): basic CRUD builder flow.
-- [`src/galchemy/examples/join_example.gleam`](./src/galchemy/examples/join_example.gleam): join-oriented read model.
-- [`src/galchemy/examples/returning_example.gleam`](./src/galchemy/examples/returning_example.gleam): `returning` for `insert` and `update`.
-- [`src/galchemy/examples/schema_tooling.gleam`](./src/galchemy/examples/schema_tooling.gleam): schema diff, migration planning, and Gleam module generation from snapshots.
-- [`src/galchemy/examples/loading.gleam`](./src/galchemy/examples/loading.gleam): eager join planning and lazy follow-up query planning.
-- [`src/galchemy/examples/orm.gleam`](./src/galchemy/examples/orm.gleam): ORM metadata, entity state tracking, and staging into `unit_of_work`.
+1. introspect PostgreSQL to `SchemaSnapshot`;
+2. infer relations;
+3. diff snapshots;
+4. compile DDL operations;
+5. build and apply migration plans;
+6. generate Gleam table modules from snapshots.
 
-## Supported Value Literals
+Main modules:
 
-`SqlValue` currently supports:
+- `galchemy/schema/introspection/postgres`
+- `galchemy/schema/relation`
+- `galchemy/schema/diff`
+- `galchemy/schema/ddl/postgres`
+- `galchemy/schema/migration/postgres`
+- `galchemy/schema/generator/gleam`
 
-- `Text(String)`
-- `Int(Int)`
-- `Float(Float)`
-- `Bool(Bool)`
-- `Bytea(BitArray)`
-- `Uuid(String)`
-- `Numeric(String)`
-- `Json(String)`
-- `Jsonb(String)`
-- `Enum(type_name: String, value: String)`
-- `Array(List(SqlValue))`
-- `Timestamp(Timestamp)`
-- `Date(Date)`
-- `TimeOfDay(TimeOfDay)`
-- `Null`
+See:
 
-## Current Feature Set
+- `galchemy/examples/schema_tooling`
+- `galchemy/examples/schema_introspection`
 
-The current stable surface includes:
+## ORM and Session Building Blocks
 
-- `select`, `insert`, `update`, `delete`;
-- `inner_join`, `left_join`;
-- `where`, `order_by`, `limit`, `offset`, `distinct`, `returning`;
-- multi-row inserts;
-- schema-qualified table names;
-- expression helpers and aggregate helpers;
-- extensible expression nodes for unary, binary, and window expressions;
-- `group_by` and `having`;
-- subqueries in `select`, `where`, and `in`;
-- derived tables;
-- CTEs;
-- `union` / `union all`;
-- window functions;
-- PostgreSQL schema introspection into `SchemaSnapshot`;
-- relation inference and relation metadata from `ForeignKey` definitions;
-- schema diff into explicit operations;
-- PostgreSQL DDL compilation for schema operations;
-- PostgreSQL migration plans, migration history queries, and transactional apply helpers;
-- Gleam schema module generation from `SchemaSnapshot`, including `relations()` helpers;
-- declarative model definitions with explicit column builders and relation definitions that can be converted into `SchemaSnapshot` and ORM metadata;
-- model-first query helpers, including joins by relation metadata, on top of declarative models and ORM metadata;
-- model-first loader options for `joinedload` / `selectinload`-style planning;
-- explicit result mapping into `entity`, scalar, and tuple shapes;
-- explicit codec layer for DB `<->` Gleam type mapping and typed scalar decoding;
-- composable custom codecs and declarative custom column bindings;
-- built-in support for `bytea`, `uuid`, `numeric`, `json`, `jsonb`, enum, and array value/codec flows;
-- runtime metadata registry over registered models, table schemas, and derived model metadata;
-- ORM model metadata derived from schema snapshots;
-- mapper registry for model metadata reuse;
-- identity map for materialized entities;
-- row-to-entity materialization pipeline with identity-aware reuse;
-- relation graph hydration for `belongs_to` and `has_many`;
-- explicit entity lifecycle hooks through `materialize_with_hooks`, `hydrate_with_hooks`, `stage_with_hooks`, `attach_with_hooks`, and `refresh_with_hooks`;
-- entity materialization, state tracking, and staging into `unit_of_work`;
-- generic flush execution over ordered `unit_of_work` plans;
-- explicit session runtime with `track`, `attach`, `stage`, `detach`, `refresh`, `flush`, `commit`, and `rollback`;
-- explicit cascade rules for staged relation graphs;
-- transaction-aware session lifecycle for generic executors and PostgreSQL connections;
-- session-style `unit_of_work` flush planning with dependency-aware insert/delete ordering;
-- eager join planning and lazy follow-up query planning from inferred relations;
-- configurable compiler hooks through `CompilerConfig`;
-- PostgreSQL execution through `pog`.
+`galchemy` ORM is explicit and composable. It provides primitives, not hidden magic:
 
-## Current Limits
+- declarative model definition: `galchemy/orm/declarative`;
+- metadata/mapper/runtime registries;
+- identity map and materializer;
+- explicit entity state transitions;
+- unit-of-work flush planning;
+- session runtime with `track`, `stage`, `flush`, `commit`, `rollback`;
+- loading planners (joined/select-in style).
 
-The library still intentionally does not include:
+Recommended starting path:
 
-- dialect abstraction;
-- arbitrary dialect plugins.
+1. `galchemy/examples/orm_declarative`
+2. `galchemy/examples/orm`
+3. `galchemy/examples/loading`
+
+## Public API Map
+
+- `galchemy`: top-level compile facade (`compile`, `compile_with`).
+- `galchemy/dsl/*`: SQL builders.
+- `galchemy/sql/compiler`: AST compiler.
+- `galchemy/sql/postgres`: `pog` adapter.
+- `galchemy/schema/*`: schema introspection/diff/migration/generation.
+- `galchemy/orm/*`: declarative metadata, query/result mapping, materialization.
+- `galchemy/session/*`: unit-of-work, runtime, transaction and loading helpers.
+
+## Current Scope
+
+Intentionally in scope:
+
+- PostgreSQL-first behavior;
+- explicit AST and compile boundary;
+- explicit runtime/session mechanics.
+
+Intentionally out of scope:
+
+- multi-dialect SQL abstraction;
+- implicit ORM behaviors.
 
 ## Development
 
 ```sh
 gleam check
 gleam test
-gleam run -m galchemy/examples/simple_select
-gleam run -m galchemy/examples/crud
-gleam run -m galchemy/examples/join_example
-gleam run -m galchemy/examples/returning_example
-gleam run -m galchemy/examples/schema_tooling
-gleam run -m galchemy/examples/loading
-gleam run -m galchemy/examples/orm
 ```

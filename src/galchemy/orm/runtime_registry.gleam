@@ -8,10 +8,7 @@ import gleam/option
 import gleam/result
 
 pub type RuntimeRegistry {
-  RuntimeRegistry(
-    snapshot: model.SchemaSnapshot,
-    models: List(RuntimeModel),
-  )
+  RuntimeRegistry(snapshot: model.SchemaSnapshot, models: List(RuntimeModel))
 }
 
 pub type RuntimeModel {
@@ -31,10 +28,7 @@ pub type RegistryError {
 }
 
 pub fn empty() -> RuntimeRegistry {
-  RuntimeRegistry(
-    snapshot: model.SchemaSnapshot(tables: []),
-    models: [],
-  )
+  RuntimeRegistry(snapshot: model.SchemaSnapshot(tables: []), models: [])
 }
 
 pub fn from_snapshot(
@@ -58,8 +52,7 @@ pub fn register_model(
     declarative.to_table_schema(next_model)
     |> result.map_error(DeclarativeError),
   )
-  let table_ref =
-    relation.table_ref(table_schema.schema, table_schema.name)
+  let table_ref = relation.table_ref(table_schema.schema, table_schema.name)
   use _ <- result_try(ensure_not_registered(registry.models, table_ref))
   use next_metadata <- result_try(
     declarative.to_metadata(next_model)
@@ -133,7 +126,11 @@ pub fn has_column(
   table_name: String,
   column_name: String,
 ) -> Result(Bool, RegistryError) {
-  use next_metadata <- result_try(model_metadata(registry, schema_name, table_name))
+  use next_metadata <- result_try(model_metadata(
+    registry,
+    schema_name,
+    table_name,
+  ))
   Ok(metadata.has_column(next_metadata, column_name))
 }
 
@@ -143,7 +140,11 @@ pub fn has_relation(
   table_name: String,
   relation_name: String,
 ) -> Result(Bool, RegistryError) {
-  use next_metadata <- result_try(model_metadata(registry, schema_name, table_name))
+  use next_metadata <- result_try(model_metadata(
+    registry,
+    schema_name,
+    table_name,
+  ))
   Ok(metadata.has_relation(next_metadata, relation_name))
 }
 
@@ -153,7 +154,11 @@ pub fn relation_named(
   table_name: String,
   relation_name: String,
 ) -> Result(option.Option(relation.Relation), RegistryError) {
-  use next_metadata <- result_try(model_metadata(registry, schema_name, table_name))
+  use next_metadata <- result_try(model_metadata(
+    registry,
+    schema_name,
+    table_name,
+  ))
   Ok(metadata.relation_named(next_metadata, relation_name))
 }
 

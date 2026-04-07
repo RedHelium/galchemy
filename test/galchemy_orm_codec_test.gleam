@@ -44,8 +44,7 @@ pub fn extended_codecs_encode_and_decode_test() {
     )
     == Ok("550e8400-e29b-41d4-a716-446655440000")
 
-  assert codec.encode(codec.numeric(), "123.45")
-    == expression.Numeric("123.45")
+  assert codec.encode(codec.numeric(), "123.45") == expression.Numeric("123.45")
   assert codec.decode(codec.numeric(), expression.Numeric("123.45"))
     == Ok("123.45")
 
@@ -64,12 +63,7 @@ pub fn temporal_and_nullable_codecs_test() {
   let ts = timestamp.from_unix_seconds_and_nanoseconds(1_744_207_230, 123)
   let date = calendar.Date(year: 2026, month: calendar.April, day: 8)
   let time =
-    calendar.TimeOfDay(
-      hours: 14,
-      minutes: 5,
-      seconds: 33,
-      nanoseconds: 456,
-    )
+    calendar.TimeOfDay(hours: 14, minutes: 5, seconds: 33, nanoseconds: 456)
 
   assert codec.encode(codec.timestamp(), ts) == expression.Timestamp(ts)
   assert codec.decode(codec.timestamp(), expression.Timestamp(ts)) == Ok(ts)
@@ -78,11 +72,13 @@ pub fn temporal_and_nullable_codecs_test() {
   assert codec.decode(codec.date(), expression.Date(date)) == Ok(date)
 
   assert codec.encode(codec.time_of_day(), time) == expression.TimeOfDay(time)
-  assert codec.decode(codec.time_of_day(), expression.TimeOfDay(time)) == Ok(time)
+  assert codec.decode(codec.time_of_day(), expression.TimeOfDay(time))
+    == Ok(time)
 
   let nullable_text = codec.nullable(codec.text())
 
-  assert codec.encode(nullable_text, option.Some("ann")) == expression.Text("ann")
+  assert codec.encode(nullable_text, option.Some("ann"))
+    == expression.Text("ann")
   assert codec.encode(nullable_text, option.None) == expression.Null
   assert codec.decode(nullable_text, expression.Text("ann"))
     == Ok(option.Some("ann"))
@@ -99,9 +95,12 @@ pub fn scalar_as_maps_typed_values_test() {
   let #(count, _) =
     result.one(
       result.scalar_as("post_count", codec.int()),
-      result.row([
-        result.scalar("post_count", expression.Int(3)),
-      ], []),
+      result.row(
+        [
+          result.scalar("post_count", expression.Int(3)),
+        ],
+        [],
+      ),
       materializer.new(empty_registry()),
     )
     |> expect_mapped
@@ -113,30 +112,29 @@ pub fn scalar_as_returns_codec_error_test() {
   let mapped =
     result.one(
       result.scalar_as("post_count", codec.int()),
-      result.row([
-        result.scalar("post_count", expression.Text("oops")),
-      ], []),
+      result.row(
+        [
+          result.scalar("post_count", expression.Text("oops")),
+        ],
+        [],
+      ),
       materializer.new(empty_registry()),
     )
 
   assert mapped
-    == Error(result.CodecError(
-      codec.UnexpectedType(expected: "Int", actual: "Text"),
-    ))
+    == Error(
+      result.CodecError(codec.UnexpectedType(expected: "Int", actual: "Text")),
+    )
 }
 
 pub fn custom_codecs_can_be_mapped_and_reused_in_declarative_models_test() {
   let user_id_type =
     codec.define(
       "user_id",
-      codec.map(
-        codec.int(),
-        fn(value) { Ok(UserId(value)) },
-        fn(value) {
-          let UserId(inner) = value
-          inner
-        },
-      ),
+      codec.map(codec.int(), fn(value) { Ok(UserId(value)) }, fn(value) {
+        let UserId(inner) = value
+        inner
+      }),
     )
 
   assert codec.sql_type_name(user_id_type) == "user_id"

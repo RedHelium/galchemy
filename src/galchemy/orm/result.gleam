@@ -11,10 +11,7 @@ pub type ScalarField {
 }
 
 pub type Row {
-  Row(
-    scalars: List(ScalarField),
-    entities: List(materializer.RowData),
-  )
+  Row(scalars: List(ScalarField), entities: List(materializer.RowData))
 }
 
 pub type MappingError {
@@ -26,7 +23,8 @@ pub type MappingError {
 
 pub type Mapper(a) {
   Mapper(
-    run: fn(Row, materializer.Materializer) -> Result(#(a, materializer.Materializer), MappingError),
+    run: fn(Row, materializer.Materializer) ->
+      Result(#(a, materializer.Materializer), MappingError),
   )
 }
 

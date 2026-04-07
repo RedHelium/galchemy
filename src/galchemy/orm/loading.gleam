@@ -75,8 +75,7 @@ fn apply_loop(
   select_in: List(SelectInPlan),
 ) -> Result(AppliedOptions, LoadingError) {
   case options {
-    [] ->
-      Ok(AppliedOptions(query: query, select_in: list.reverse(select_in)))
+    [] -> Ok(AppliedOptions(query: query, select_in: list.reverse(select_in)))
     [next_option, ..rest] -> {
       case next_option {
         JoinedLoad(relation_name: relation_name, related_model: related_model) -> {
@@ -131,8 +130,7 @@ fn selectin_query(
   parents: List(entity.Entity),
 ) -> Result(ast_query.Query, LoadingError) {
   case parents {
-    [] ->
-      Ok(ast_query.Select(orm_query.select_all(plan.related_model)))
+    [] -> Ok(ast_query.Select(orm_query.select_all(plan.related_model)))
     _ -> {
       use where_ <- result_try(selectin_predicate(
         plan.parent,
@@ -141,12 +139,10 @@ fn selectin_query(
         parents,
       ))
 
-      Ok(
-        ast_query.Select(
-          orm_query.select_all(plan.related_model)
-          |> orm_query.where_(where_),
-        ),
-      )
+      Ok(ast_query.Select(
+        orm_query.select_all(plan.related_model)
+        |> orm_query.where_(where_),
+      ))
     }
   }
 }
@@ -281,12 +277,10 @@ fn pair_predicate(
   ))
 
   Ok(expression.Comparison(
-    lhs: expression.ColumnExpr(
-      schema.ColumnMeta(
-        table: related_model.table,
-        name: next_pair.related_column,
-      ),
-    ),
+    lhs: expression.ColumnExpr(schema.ColumnMeta(
+      table: related_model.table,
+      name: next_pair.related_column,
+    )),
     op: expression.Eq,
     rhs: expression.ValueExpr(value),
   ))
