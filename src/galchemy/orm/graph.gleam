@@ -1,5 +1,6 @@
 import galchemy/ast/expression
 import galchemy/orm/entity
+import galchemy/orm/hook
 import galchemy/orm/identity_map
 import galchemy/orm/metadata
 import galchemy/schema/relation
@@ -25,16 +26,33 @@ pub type HydrationError {
   UnknownRelation(table: relation.TableRef, relation_name: String)
 }
 
+pub type HydrationHookError(hook_error) {
+  HydrationError(HydrationError)
+  HookError(hook_error)
+}
+
 pub fn hydrate(
   next_entity: entity.Entity,
   identities: identity_map.IdentityMap,
 ) -> Result(HydratedEntity, HydrationError) {
+  case hydrate_with_hooks(next_entity, identities, hook.none()) {
+    Ok(value) -> Ok(value)
+    Error(HydrationError(error)) -> Error(error)
+    Error(HookError(_)) -> panic as "unreachable hook error for hook.none()"
+  }
+}
+
+pub fn hydrate_with_hooks(
+  next_entity: entity.Entity,
+  identities: identity_map.IdentityMap,
+  hooks: hook.EntityHooks(hook_error),
+) -> Result(HydratedEntity, HydrationHookError(hook_error)) {
   let relation_names =
     list.map(next_entity.metadata.relations, fn(next_relation) {
       next_relation.name
     })
 
-  hydrate_only(next_entity, relation_names, identities)
+  hydrate_only_with_hooks(next_entity, relation_names, identities, hooks)
 }
 
 pub fn hydrate_only(
@@ -42,7 +60,20 @@ pub fn hydrate_only(
   relation_names: List(String),
   identities: identity_map.IdentityMap,
 ) -> Result(HydratedEntity, HydrationError) {
-  hydrate_relations(next_entity, relation_names, identities, [])
+  case hydrate_only_with_hooks(next_entity, relation_names, identities, hook.none()) {
+    Ok(value) -> Ok(value)
+    Error(HydrationError(error)) -> Error(error)
+    Error(HookError(_)) -> panic as "unreachable hook error for hook.none()"
+  }
+}
+
+pub fn hydrate_only_with_hooks(
+  next_entity: entity.Entity,
+  relation_names: List(String),
+  identities: identity_map.IdentityMap,
+  hooks: hook.EntityHooks(hook_error),
+) -> Result(HydratedEntity, HydrationHookError(hook_error)) {
+  hydrate_relations(next_entity, relation_names, identities, hooks, [])
 }
 
 pub fn hydrate_many(
@@ -50,7 +81,20 @@ pub fn hydrate_many(
   relation_names: List(String),
   identities: identity_map.IdentityMap,
 ) -> Result(List(HydratedEntity), HydrationError) {
-  hydrate_many_loop(entities, relation_names, identities, [])
+  case hydrate_many_with_hooks(entities, relation_names, identities, hook.none()) {
+    Ok(value) -> Ok(value)
+    Error(HydrationError(error)) -> Error(error)
+    Error(HookError(_)) -> panic as "unreachable hook error for hook.none()"
+  }
+}
+
+pub fn hydrate_many_with_hooks(
+  entities: List(entity.Entity),
+  relation_names: List(String),
+  identities: identity_map.IdentityMap,
+  hooks: hook.EntityHooks(hook_error),
+) -> Result(List(HydratedEntity), HydrationHookError(hook_error)) {
+  hydrate_many_loop(entities, relation_names, identities, hooks, [])
 }
 
 pub fn relation_named(
@@ -68,8 +112,9 @@ fn hydrate_relations(
   next_entity: entity.Entity,
   relation_names: List(String),
   identities: identity_map.IdentityMap,
+  hooks: hook.EntityHooks(hook_error),
   acc: List(HydratedRelation),
-) -> Result(HydratedEntity, HydrationError) {
+) -> Result(HydratedEntity, HydrationHookError(hook_error)) {
   case relation_names {
     [] -> Ok(HydratedEntity(entity: next_entity, relations: list.reverse(acc)))
     [relation_name, ..rest] -> {
@@ -77,9 +122,10 @@ fn hydrate_relations(
         next_entity,
         relation_name,
         identities,
+        hooks,
       ))
 
-      hydrate_relations(updated_entity, rest, identities, [
+      hydrate_relations(updated_entity, rest, identities, hooks, [
         hydrated_relation,
         ..acc
       ])
@@ -91,18 +137,20 @@ fn hydrate_many_loop(
   entities: List(entity.Entity),
   relation_names: List(String),
   identities: identity_map.IdentityMap,
+  hooks: hook.EntityHooks(hook_error),
   acc: List(HydratedEntity),
-) -> Result(List(HydratedEntity), HydrationError) {
+) -> Result(List(HydratedEntity), HydrationHookError(hook_error)) {
   case entities {
     [] -> Ok(list.reverse(acc))
     [next_entity, ..rest] -> {
-      use hydrated <- result_try(hydrate_only(
+      use hydrated <- result_try(hydrate_only_with_hooks(
         next_entity,
         relation_names,
         identities,
+        hooks,
       ))
 
-      hydrate_many_loop(rest, relation_names, identities, [hydrated, ..acc])
+      hydrate_many_loop(rest, relation_names, identities, hooks, [hydrated, ..acc])
     }
   }
 }
@@ -111,13 +159,14 @@ fn hydrate_relation(
   next_entity: entity.Entity,
   relation_name: String,
   identities: identity_map.IdentityMap,
-) -> Result(#(entity.Entity, HydratedRelation), HydrationError) {
+  hooks: hook.EntityHooks(hook_error),
+) -> Result(#(entity.Entity, HydratedRelation), HydrationHookError(hook_error)) {
   case metadata.relation_named(next_entity.metadata, relation_name) {
     option.None ->
-      Error(UnknownRelation(
+      Error(HydrationError(UnknownRelation(
         table: next_entity.metadata.table,
         relation_name: relation_name,
-      ))
+      )))
     option.Some(next_relation) -> {
       let related_entities =
         identity_map.values_for_table(identities, next_relation.related_table)
@@ -127,6 +176,7 @@ fn hydrate_relation(
       use loaded_entity <- result_try(mark_relation_loaded(
         next_entity,
         relation_name,
+        hooks,
       ))
 
       Ok(#(
@@ -214,10 +264,13 @@ fn find_field_value(
 fn mark_relation_loaded(
   next_entity: entity.Entity,
   relation_name: String,
-) -> Result(entity.Entity, HydrationError) {
+  hooks: hook.EntityHooks(hook_error),
+) -> Result(entity.Entity, HydrationHookError(hook_error)) {
   case entity.mark_relation_loaded(next_entity, relation_name) {
-    Ok(updated_entity) -> Ok(updated_entity)
-    Error(error) -> Error(EntityError(error))
+    Ok(updated_entity) ->
+      hook.after_relation_loaded(hooks, updated_entity, relation_name)
+      |> map_hook_error
+    Error(error) -> Error(HydrationError(EntityError(error)))
   }
 }
 
@@ -240,5 +293,14 @@ fn result_try(value: Result(a, e), next: fn(a) -> Result(b, e)) -> Result(b, e) 
   case value {
     Ok(inner) -> next(inner)
     Error(error) -> Error(error)
+  }
+}
+
+fn map_hook_error(
+  value: Result(entity.Entity, hook_error),
+) -> Result(entity.Entity, HydrationHookError(hook_error)) {
+  case value {
+    Ok(inner) -> Ok(inner)
+    Error(error) -> Error(HookError(error))
   }
 }

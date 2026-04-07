@@ -1,4 +1,5 @@
 import galchemy/orm/entity
+import galchemy/orm/hook
 import galchemy/orm/identity_map
 import galchemy/orm/mapper_registry
 import galchemy/schema/relation
@@ -21,6 +22,11 @@ pub type MaterializationError {
   RegistryError(mapper_registry.RegistryError)
   EntityError(entity.EntityError)
   IdentityMapError(identity_map.IdentityMapError)
+}
+
+pub type MaterializationHookError(hook_error) {
+  MaterializationError(MaterializationError)
+  HookError(hook_error)
 }
 
 pub fn new(registry: mapper_registry.MapperRegistry) -> Materializer {
@@ -46,18 +52,30 @@ pub fn materialize(
   materializer: Materializer,
   row_data: RowData,
 ) -> Result(#(entity.Entity, Materializer), MaterializationError) {
+  case materialize_with_hooks(materializer, row_data, hook.none()) {
+    Ok(value) -> Ok(value)
+    Error(MaterializationError(error)) -> Error(error)
+    Error(HookError(_)) -> panic as "unreachable hook error for hook.none()"
+  }
+}
+
+pub fn materialize_with_hooks(
+  materializer: Materializer,
+  row_data: RowData,
+  hooks: hook.EntityHooks(hook_error),
+) -> Result(#(entity.Entity, Materializer), MaterializationHookError(hook_error)) {
   let RowData(table: table_ref, fields: fields) = row_data
 
   case
     mapper_registry.get(materializer.registry, table_ref.schema, table_ref.name)
   {
-    Error(error) -> Error(RegistryError(error))
+    Error(error) -> Error(MaterializationError(RegistryError(error)))
     Ok(metadata) ->
       case entity.materialize(metadata, fields) {
-        Error(error) -> Error(EntityError(error))
+        Error(error) -> Error(MaterializationError(EntityError(error)))
         Ok(next_entity) ->
           case entity.identity(next_entity) {
-            Error(error) -> Error(EntityError(error))
+            Error(error) -> Error(MaterializationError(EntityError(error)))
             Ok(next_identity) ->
               case
                 identity_map.get(
@@ -68,20 +86,27 @@ pub fn materialize(
               {
                 option.Some(existing_entity) ->
                   Ok(#(existing_entity, materializer))
-                option.None ->
+                option.None -> {
+                  use hooked_entity <- result_try(
+                    hook.after_load(hooks, next_entity)
+                    |> map_hook_error,
+                  )
+
                   case
-                    identity_map.insert(materializer.identities, next_entity)
+                    identity_map.insert(materializer.identities, hooked_entity)
                   {
-                    Error(error) -> Error(IdentityMapError(error))
+                    Error(error) ->
+                      Error(MaterializationError(IdentityMapError(error)))
                     Ok(next_identities) ->
                       Ok(#(
-                        next_entity,
+                        hooked_entity,
                         Materializer(
                           ..materializer,
                           identities: next_identities,
                         ),
                       ))
                   }
+                }
               }
           }
       }
@@ -93,6 +118,17 @@ pub fn materialize_many(
   rows: List(RowData),
 ) -> Result(#(List(entity.Entity), Materializer), MaterializationError) {
   materialize_many_loop(materializer, rows, [])
+}
+
+pub fn materialize_many_with_hooks(
+  materializer: Materializer,
+  rows: List(RowData),
+  hooks: hook.EntityHooks(hook_error),
+) -> Result(
+  #(List(entity.Entity), Materializer),
+  MaterializationHookError(hook_error),
+) {
+  materialize_many_with_hooks_loop(materializer, rows, hooks, [])
 }
 
 pub fn identity_map(materializer: Materializer) -> identity_map.IdentityMap {
@@ -118,6 +154,41 @@ fn materialize_many_loop(
 
       materialize_many_loop(next_materializer, rest, [next_entity, ..acc])
     }
+  }
+}
+
+fn materialize_many_with_hooks_loop(
+  materializer: Materializer,
+  rows: List(RowData),
+  hooks: hook.EntityHooks(hook_error),
+  acc: List(entity.Entity),
+) -> Result(
+  #(List(entity.Entity), Materializer),
+  MaterializationHookError(hook_error),
+) {
+  case rows {
+    [] -> Ok(#(list.reverse(acc), materializer))
+    [next_row, ..rest] -> {
+      use #(next_entity, next_materializer) <- result_try(
+        materialize_with_hooks(materializer, next_row, hooks),
+      )
+
+      materialize_many_with_hooks_loop(
+        next_materializer,
+        rest,
+        hooks,
+        [next_entity, ..acc],
+      )
+    }
+  }
+}
+
+fn map_hook_error(
+  value: Result(entity.Entity, hook_error),
+) -> Result(entity.Entity, MaterializationHookError(hook_error)) {
+  case value {
+    Ok(inner) -> Ok(inner)
+    Error(error) -> Error(HookError(error))
   }
 }
 

@@ -1,5 +1,6 @@
 import galchemy/ast/query
 import galchemy/orm/entity
+import galchemy/orm/hook
 import galchemy/orm/identity_map
 import galchemy/schema/model
 import galchemy/schema/relation
@@ -20,6 +21,11 @@ pub type TrackError {
   EntityError(entity.EntityError)
   IdentityMapError(identity_map.IdentityMapError)
   UnknownTrackedEntity(relation.TableRef, unit_of_work.Identity)
+}
+
+pub type HookTrackError(hook_error) {
+  TrackFailure(TrackError)
+  HookFailure(hook_error)
 }
 
 pub type SessionExecutionError(exec_error) {
@@ -58,15 +64,36 @@ pub fn stage(
   session: Session,
   next_entity: entity.Entity,
 ) -> Result(Session, TrackError) {
+  case stage_with_hooks(session, next_entity, hook.none()) {
+    Ok(value) -> Ok(value)
+    Error(TrackFailure(error)) -> Error(error)
+    Error(HookFailure(_)) -> panic as "unreachable hook error for hook.none()"
+  }
+}
+
+pub fn stage_with_hooks(
+  session: Session,
+  next_entity: entity.Entity,
+  hooks: hook.EntityHooks(hook_error),
+) -> Result(Session, HookTrackError(hook_error)) {
+  use hooked_entity <- result_try(
+    hook.before_stage(hooks, next_entity)
+    |> map_hook_error,
+  )
   use pending <- result_try(
-    entity.stage(session.pending, next_entity)
-    |> map_entity_error,
+    entity.stage(session.pending, hooked_entity)
+    |> map_entity_error
+    |> map_track_error,
   )
   use tracked <- result_try(
-    identity_map.upsert(session.tracked, next_entity)
-    |> map_identity_error,
+    identity_map.upsert(session.tracked, hooked_entity)
+    |> map_identity_error
+    |> map_track_error,
   )
-  use persisted <- result_try(stage_persisted(session.persisted, next_entity))
+  use persisted <- result_try(
+    stage_persisted(session.persisted, hooked_entity)
+    |> map_track_error,
+  )
 
   Ok(
     Session(..session, pending: pending, tracked: tracked, persisted: persisted),
@@ -77,7 +104,25 @@ pub fn attach(
   session: Session,
   next_entity: entity.Entity,
 ) -> Result(Session, TrackError) {
-  track(session, next_entity)
+  case attach_with_hooks(session, next_entity, hook.none()) {
+    Ok(value) -> Ok(value)
+    Error(TrackFailure(error)) -> Error(error)
+    Error(HookFailure(_)) -> panic as "unreachable hook error for hook.none()"
+  }
+}
+
+pub fn attach_with_hooks(
+  session: Session,
+  next_entity: entity.Entity,
+  hooks: hook.EntityHooks(hook_error),
+) -> Result(Session, HookTrackError(hook_error)) {
+  use hooked_entity <- result_try(
+    hook.after_attach(hooks, next_entity)
+    |> map_hook_error,
+  )
+
+  track(session, hooked_entity)
+  |> map_track_error
 }
 
 pub fn detach(
@@ -109,15 +154,33 @@ pub fn refresh(
   session: Session,
   next_entity: entity.Entity,
 ) -> Result(Session, TrackError) {
+  case refresh_with_hooks(session, next_entity, hook.none()) {
+    Ok(value) -> Ok(value)
+    Error(TrackFailure(error)) -> Error(error)
+    Error(HookFailure(_)) -> panic as "unreachable hook error for hook.none()"
+  }
+}
+
+pub fn refresh_with_hooks(
+  session: Session,
+  next_entity: entity.Entity,
+  hooks: hook.EntityHooks(hook_error),
+) -> Result(Session, HookTrackError(hook_error)) {
   use next_identity <- result_try(
     entity.identity(next_entity)
-    |> map_entity_error,
+    |> map_entity_error
+    |> map_track_error,
   )
   let table = next_entity.metadata.table
 
   case identity_map.get(session.persisted, table, next_identity) {
-    option.None -> Error(UnknownTrackedEntity(table, next_identity))
-    option.Some(persisted_entity) ->
+    option.None -> Error(TrackFailure(UnknownTrackedEntity(table, next_identity)))
+    option.Some(persisted_entity) -> {
+      use refreshed_entity <- result_try(
+        hook.after_refresh(hooks, persisted_entity)
+        |> map_hook_error,
+      )
+
       Ok(
         Session(
           ..session,
@@ -129,11 +192,12 @@ pub fn refresh(
           ),
           tracked: identity_map.upsert(
               identity_map.remove(session.tracked, table, next_identity),
-              persisted_entity,
+              refreshed_entity,
             )
             |> unwrap_identity_map,
         ),
       )
+    }
   }
 }
 
@@ -222,6 +286,24 @@ fn stage_persisted(
               |> map_identity_error
           }
       }
+  }
+}
+
+fn map_track_error(
+  value: Result(a, TrackError),
+) -> Result(a, HookTrackError(hook_error)) {
+  case value {
+    Ok(inner) -> Ok(inner)
+    Error(error) -> Error(TrackFailure(error))
+  }
+}
+
+fn map_hook_error(
+  value: Result(entity.Entity, hook_error),
+) -> Result(entity.Entity, HookTrackError(hook_error)) {
+  case value {
+    Ok(inner) -> Ok(inner)
+    Error(error) -> Error(HookFailure(error))
   }
 }
 

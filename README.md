@@ -64,6 +64,7 @@ The public API is intentionally namespaced by module:
 - `galchemy/schema/migration/postgres`: PostgreSQL migration planning, status tracking, and application helpers;
 - `galchemy/schema/generator/gleam`: Gleam module generation from schema snapshots;
 - `galchemy/orm/metadata`: ORM model metadata derived from `SchemaSnapshot`;
+- `galchemy/orm/hook`: explicit entity lifecycle hook definitions for load, relation hydration, attach, refresh, and staged persistence;
 - `galchemy/orm/mapper_registry`: mapper registry for ORM model metadata;
 - `galchemy/orm/identity_map`: identity map for materialized entities;
 - `galchemy/orm/materializer`: row-to-entity materialization pipeline on top of mapper metadata and identity map;
@@ -418,6 +419,7 @@ The current stable surface includes:
 - identity map for materialized entities;
 - row-to-entity materialization pipeline with identity-aware reuse;
 - relation graph hydration for `belongs_to` and `has_many`;
+- explicit entity lifecycle hooks through `materialize_with_hooks`, `hydrate_with_hooks`, `stage_with_hooks`, `attach_with_hooks`, and `refresh_with_hooks`;
 - entity materialization, state tracking, and staging into `unit_of_work`;
 - generic flush execution over ordered `unit_of_work` plans;
 - explicit session runtime with `track`, `attach`, `stage`, `detach`, `refresh`, `flush`, `commit`, and `rollback`;
