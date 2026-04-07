@@ -8,7 +8,8 @@ pub type EntityHooks(error) {
     before_delete: fn(entity.Entity) -> Result(entity.Entity, error),
     after_attach: fn(entity.Entity) -> Result(entity.Entity, error),
     after_refresh: fn(entity.Entity) -> Result(entity.Entity, error),
-    after_relation_loaded: fn(entity.Entity, String) -> Result(entity.Entity, error),
+    after_relation_loaded: fn(entity.Entity, String) ->
+      Result(entity.Entity, error),
   )
 }
 

@@ -60,7 +60,14 @@ pub fn hydrate_only(
   relation_names: List(String),
   identities: identity_map.IdentityMap,
 ) -> Result(HydratedEntity, HydrationError) {
-  case hydrate_only_with_hooks(next_entity, relation_names, identities, hook.none()) {
+  case
+    hydrate_only_with_hooks(
+      next_entity,
+      relation_names,
+      identities,
+      hook.none(),
+    )
+  {
     Ok(value) -> Ok(value)
     Error(HydrationError(error)) -> Error(error)
     Error(HookError(_)) -> panic as "unreachable hook error for hook.none()"
@@ -81,7 +88,9 @@ pub fn hydrate_many(
   relation_names: List(String),
   identities: identity_map.IdentityMap,
 ) -> Result(List(HydratedEntity), HydrationError) {
-  case hydrate_many_with_hooks(entities, relation_names, identities, hook.none()) {
+  case
+    hydrate_many_with_hooks(entities, relation_names, identities, hook.none())
+  {
     Ok(value) -> Ok(value)
     Error(HydrationError(error)) -> Error(error)
     Error(HookError(_)) -> panic as "unreachable hook error for hook.none()"
@@ -150,7 +159,10 @@ fn hydrate_many_loop(
         hooks,
       ))
 
-      hydrate_many_loop(rest, relation_names, identities, hooks, [hydrated, ..acc])
+      hydrate_many_loop(rest, relation_names, identities, hooks, [
+        hydrated,
+        ..acc
+      ])
     }
   }
 }
@@ -163,10 +175,12 @@ fn hydrate_relation(
 ) -> Result(#(entity.Entity, HydratedRelation), HydrationHookError(hook_error)) {
   case metadata.relation_named(next_entity.metadata, relation_name) {
     option.None ->
-      Error(HydrationError(UnknownRelation(
-        table: next_entity.metadata.table,
-        relation_name: relation_name,
-      )))
+      Error(
+        HydrationError(UnknownRelation(
+          table: next_entity.metadata.table,
+          relation_name: relation_name,
+        )),
+      )
     option.Some(next_relation) -> {
       let related_entities =
         identity_map.values_for_table(identities, next_relation.related_table)

@@ -178,9 +178,15 @@ pub fn attach_refresh_and_hydrate_with_hooks_test() {
     )
     |> expect_hydrated_with_hooks
 
-  assert field_value(first_entity(runtime.tracked_entities(attached_session)), "audit")
+  assert field_value(
+      first_entity(runtime.tracked_entities(attached_session)),
+      "audit",
+    )
     == option.Some(ast_expression.Text("attached"))
-  assert field_value(first_entity(runtime.tracked_entities(refreshed_session)), "audit")
+  assert field_value(
+      first_entity(runtime.tracked_entities(refreshed_session)),
+      "audit",
+    )
     == option.Some(ast_expression.Text("refreshed"))
   assert field_value(graph.hydrated_entity(hydrated), "audit")
     == option.Some(ast_expression.Text("posts_loaded"))
@@ -278,7 +284,9 @@ fn seed_identity_map(entities: List(entity.Entity)) -> identity_map.IdentityMap 
   case entities {
     [] -> identity_map.empty()
     [next_entity, ..rest] -> {
-      let next_map = case identity_map.insert(seed_identity_map(rest), next_entity) {
+      let next_map = case
+        identity_map.insert(seed_identity_map(rest), next_entity)
+      {
         Ok(value) -> value
         Error(error) -> panic as string.inspect(error)
       }

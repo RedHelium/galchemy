@@ -63,7 +63,10 @@ pub fn materialize_with_hooks(
   materializer: Materializer,
   row_data: RowData,
   hooks: hook.EntityHooks(hook_error),
-) -> Result(#(entity.Entity, Materializer), MaterializationHookError(hook_error)) {
+) -> Result(
+  #(entity.Entity, Materializer),
+  MaterializationHookError(hook_error),
+) {
   let RowData(table: table_ref, fields: fields) = row_data
 
   case
@@ -173,12 +176,10 @@ fn materialize_many_with_hooks_loop(
         materialize_with_hooks(materializer, next_row, hooks),
       )
 
-      materialize_many_with_hooks_loop(
-        next_materializer,
-        rest,
-        hooks,
-        [next_entity, ..acc],
-      )
+      materialize_many_with_hooks_loop(next_materializer, rest, hooks, [
+        next_entity,
+        ..acc
+      ])
     }
   }
 }

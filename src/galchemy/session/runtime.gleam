@@ -174,7 +174,8 @@ pub fn refresh_with_hooks(
   let table = next_entity.metadata.table
 
   case identity_map.get(session.persisted, table, next_identity) {
-    option.None -> Error(TrackFailure(UnknownTrackedEntity(table, next_identity)))
+    option.None ->
+      Error(TrackFailure(UnknownTrackedEntity(table, next_identity)))
     option.Some(persisted_entity) -> {
       use refreshed_entity <- result_try(
         hook.after_refresh(hooks, persisted_entity)
