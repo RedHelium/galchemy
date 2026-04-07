@@ -10,6 +10,7 @@ import galchemy/dsl/table
 import galchemy/dsl/update
 import galchemy/sql/compiler
 import galchemy/sql/postgres
+import gleam/bit_array
 import gleam/string
 import gleam/time/calendar
 import gleam/time/timestamp
@@ -943,10 +944,29 @@ pub fn to_query_with_custom_config_test() {
 }
 
 pub fn to_pog_value_test() {
+  let payload = bit_array.from_string("{\"name\":\"Ann\"}")
+
   assert postgres.to_pog_value(ast_expression.Int(7)) == pog.int(7)
   assert postgres.to_pog_value(ast_expression.Float(1.5)) == pog.float(1.5)
   assert postgres.to_pog_value(ast_expression.Text("Ann")) == pog.text("Ann")
   assert postgres.to_pog_value(ast_expression.Bool(True)) == pog.bool(True)
+  assert postgres.to_pog_value(ast_expression.Bytea(payload)) == pog.bytea(payload)
+  assert postgres.to_pog_value(ast_expression.Uuid("550e8400-e29b-41d4-a716-446655440000"))
+    == pog.text("550e8400-e29b-41d4-a716-446655440000")
+  assert postgres.to_pog_value(ast_expression.Numeric("123.45"))
+    == pog.text("123.45")
+  assert postgres.to_pog_value(ast_expression.Json("{\"name\":\"Ann\"}"))
+    == pog.text("{\"name\":\"Ann\"}")
+  assert postgres.to_pog_value(ast_expression.Jsonb("{\"name\":\"Ann\"}"))
+    == pog.text("{\"name\":\"Ann\"}")
+  assert postgres.to_pog_value(
+      ast_expression.Enum(type_name: "user_role", value: "admin"),
+    )
+    == pog.text("admin")
+  assert postgres.to_pog_value(
+      ast_expression.Array([ast_expression.Int(1), ast_expression.Int(2)]),
+    )
+    == pog.array(pog.int, [1, 2])
   assert postgres.to_pog_value(
       ast_expression.Timestamp(timestamp.from_unix_seconds_and_nanoseconds(
         seconds: 1_700_000_000,
@@ -1008,6 +1028,7 @@ pub fn to_query_from_compiled_extended_values_test() {
       nanoseconds: 123_000_000,
     )
   let date = calendar.Date(year: 2026, month: calendar.March, day: 29)
+  let payload = bit_array.from_string("{\"kind\":\"audit\"}")
   let time =
     calendar.TimeOfDay(
       hours: 12,
@@ -1017,8 +1038,14 @@ pub fn to_query_from_compiled_extended_values_test() {
     )
 
   let compiled =
-    compiler.CompiledQuery(sql: "SELECT $1, $2, $3, $4", params: [
+    compiler.CompiledQuery(sql: "SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10", params: [
       ast_expression.Float(1.5),
+      ast_expression.Bytea(payload),
+      ast_expression.Uuid("550e8400-e29b-41d4-a716-446655440000"),
+      ast_expression.Numeric("123.45"),
+      ast_expression.Json("{\"kind\":\"audit\"}"),
+      ast_expression.Jsonb("{\"kind\":\"audit\"}"),
+      ast_expression.Array([ast_expression.Int(1), ast_expression.Int(2)]),
       ast_expression.Timestamp(ts),
       ast_expression.Date(date),
       ast_expression.TimeOfDay(time),
@@ -1026,10 +1053,16 @@ pub fn to_query_from_compiled_extended_values_test() {
 
   let pog_query = postgres.to_query_from_compiled(compiled)
 
-  assert query_sql(pog_query) == "SELECT $1, $2, $3, $4"
+  assert query_sql(pog_query) == "SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10"
   assert query_parameters(pog_query)
     == [
       pog.float(1.5),
+      pog.bytea(payload),
+      pog.text("550e8400-e29b-41d4-a716-446655440000"),
+      pog.text("123.45"),
+      pog.text("{\"kind\":\"audit\"}"),
+      pog.text("{\"kind\":\"audit\"}"),
+      pog.array(pog.int, [1, 2]),
       pog.timestamp(ts),
       pog.calendar_date(date),
       pog.calendar_time_of_day(time),

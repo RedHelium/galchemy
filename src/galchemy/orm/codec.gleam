@@ -1,4 +1,5 @@
 import galchemy/ast/expression
+import gleam/list
 import gleam/option
 import gleam/time/calendar.{type Date, type TimeOfDay}
 import gleam/time/timestamp.{type Timestamp}
@@ -92,6 +93,67 @@ pub fn float() -> Codec(Float) {
   )
 }
 
+pub fn bytea() -> Codec(BitArray) {
+  Codec(
+    encode: expression.Bytea,
+    decode: fn(value) {
+      case value {
+        expression.Bytea(inner) -> Ok(inner)
+        _ -> Error(UnexpectedType(expected: "Bytea", actual: type_name(value)))
+      }
+    },
+  )
+}
+
+pub fn uuid() -> Codec(String) {
+  Codec(
+    encode: expression.Uuid,
+    decode: fn(value) {
+      case value {
+        expression.Uuid(inner) -> Ok(inner)
+        _ -> Error(UnexpectedType(expected: "Uuid", actual: type_name(value)))
+      }
+    },
+  )
+}
+
+pub fn numeric() -> Codec(String) {
+  Codec(
+    encode: expression.Numeric,
+    decode: fn(value) {
+      case value {
+        expression.Numeric(inner) -> Ok(inner)
+        _ ->
+          Error(UnexpectedType(expected: "Numeric", actual: type_name(value)))
+      }
+    },
+  )
+}
+
+pub fn json() -> Codec(String) {
+  Codec(
+    encode: expression.Json,
+    decode: fn(value) {
+      case value {
+        expression.Json(inner) -> Ok(inner)
+        _ -> Error(UnexpectedType(expected: "Json", actual: type_name(value)))
+      }
+    },
+  )
+}
+
+pub fn jsonb() -> Codec(String) {
+  Codec(
+    encode: expression.Jsonb,
+    decode: fn(value) {
+      case value {
+        expression.Jsonb(inner) -> Ok(inner)
+        _ -> Error(UnexpectedType(expected: "Jsonb", actual: type_name(value)))
+      }
+    },
+  )
+}
+
 pub fn bool() -> Codec(Bool) {
   Codec(
     encode: expression.Bool,
@@ -148,6 +210,49 @@ pub fn time_of_day() -> Codec(TimeOfDay) {
   )
 }
 
+pub fn array(inner: Codec(a)) -> Codec(List(a)) {
+  Codec(
+    encode: fn(values) {
+      expression.Array(list.map(values, fn(value) { encode(inner, value) }))
+    },
+    decode: fn(value) {
+      case value {
+        expression.Array(values) -> list.try_map(values, fn(item) {
+          decode(inner, item)
+        })
+        _ -> Error(UnexpectedType(expected: "Array", actual: type_name(value)))
+      }
+    },
+  )
+}
+
+pub fn enum_(enum_type_name: String) -> CustomCodec(String) {
+  define(
+    enum_type_name,
+    Codec(
+      encode: fn(value) {
+        expression.Enum(type_name: enum_type_name, value: value)
+      },
+      decode: fn(value) {
+        case value {
+          expression.Enum(type_name: inner_type, value: inner_value) ->
+            case inner_type == enum_type_name {
+              True -> Ok(inner_value)
+              False ->
+                Error(Custom(
+                  "Expected enum type "
+                  <> enum_type_name
+                  <> ", got "
+                  <> inner_type,
+                ))
+            }
+          _ -> Error(UnexpectedType(expected: "Enum", actual: type_name(value)))
+        }
+      },
+    ),
+  )
+}
+
 pub fn nullable(inner: Codec(a)) -> Codec(option.Option(a)) {
   Codec(
     encode: fn(value) {
@@ -192,6 +297,13 @@ fn type_name(value: expression.SqlValue) -> String {
     expression.Int(_) -> "Int"
     expression.Float(_) -> "Float"
     expression.Bool(_) -> "Bool"
+    expression.Bytea(_) -> "Bytea"
+    expression.Uuid(_) -> "Uuid"
+    expression.Numeric(_) -> "Numeric"
+    expression.Json(_) -> "Json"
+    expression.Jsonb(_) -> "Jsonb"
+    expression.Enum(type_name: _, value: _) -> "Enum"
+    expression.Array(_) -> "Array"
     expression.Timestamp(_) -> "Timestamp"
     expression.Date(_) -> "Date"
     expression.TimeOfDay(_) -> "TimeOfDay"

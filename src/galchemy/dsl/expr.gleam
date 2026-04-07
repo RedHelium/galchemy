@@ -97,6 +97,34 @@ pub fn float(value: Float) -> expression.Expression {
   expression.ValueExpr(expression.Float(value))
 }
 
+pub fn bytea(value: BitArray) -> expression.Expression {
+  expression.ValueExpr(expression.Bytea(value))
+}
+
+pub fn uuid(value: String) -> expression.Expression {
+  expression.ValueExpr(expression.Uuid(value))
+}
+
+pub fn numeric(value: String) -> expression.Expression {
+  expression.ValueExpr(expression.Numeric(value))
+}
+
+pub fn json(value: String) -> expression.Expression {
+  expression.ValueExpr(expression.Json(value))
+}
+
+pub fn jsonb(value: String) -> expression.Expression {
+  expression.ValueExpr(expression.Jsonb(value))
+}
+
+pub fn enum_(type_name: String, value: String) -> expression.Expression {
+  expression.ValueExpr(expression.Enum(type_name: type_name, value: value))
+}
+
+pub fn array(values: List(expression.SqlValue)) -> expression.Expression {
+  expression.ValueExpr(expression.Array(values))
+}
+
 // Wraps a timestamp literal as a SQL expression.
 pub fn timestamp(value: Timestamp) -> expression.Expression {
   expression.ValueExpr(expression.Timestamp(value))

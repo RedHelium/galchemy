@@ -43,6 +43,31 @@ pub fn float(table: Table, name: String) -> schema.Column(Float) {
   schema.Column(meta: schema.ColumnMeta(table: table, name: name))
 }
 
+// Creates a typed bytea column reference.
+pub fn bytea(table: Table, name: String) -> schema.Column(BitArray) {
+  schema.Column(meta: schema.ColumnMeta(table: table, name: name))
+}
+
+// Creates a typed UUID column reference.
+pub fn uuid(table: Table, name: String) -> schema.Column(String) {
+  schema.Column(meta: schema.ColumnMeta(table: table, name: name))
+}
+
+// Creates a typed numeric/decimal column reference.
+pub fn numeric(table: Table, name: String) -> schema.Column(String) {
+  schema.Column(meta: schema.ColumnMeta(table: table, name: name))
+}
+
+// Creates a typed JSON column reference.
+pub fn json(table: Table, name: String) -> schema.Column(String) {
+  schema.Column(meta: schema.ColumnMeta(table: table, name: name))
+}
+
+// Creates a typed JSONB column reference.
+pub fn jsonb(table: Table, name: String) -> schema.Column(String) {
+  schema.Column(meta: schema.ColumnMeta(table: table, name: name))
+}
+
 // Creates a typed timestamp column reference.
 pub fn timestamp(table: Table, name: String) -> schema.Column(Timestamp) {
   schema.Column(meta: schema.ColumnMeta(table: table, name: name))

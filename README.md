@@ -391,6 +391,13 @@ The `src/galchemy/examples` directory now covers more than the core CRUD path:
 - `Int(Int)`
 - `Float(Float)`
 - `Bool(Bool)`
+- `Bytea(BitArray)`
+- `Uuid(String)`
+- `Numeric(String)`
+- `Json(String)`
+- `Jsonb(String)`
+- `Enum(type_name: String, value: String)`
+- `Array(List(SqlValue))`
 - `Timestamp(Timestamp)`
 - `Date(Date)`
 - `TimeOfDay(TimeOfDay)`
@@ -425,6 +432,7 @@ The current stable surface includes:
 - explicit result mapping into `entity`, scalar, and tuple shapes;
 - explicit codec layer for DB `<->` Gleam type mapping and typed scalar decoding;
 - composable custom codecs and declarative custom column bindings;
+- built-in support for `bytea`, `uuid`, `numeric`, `json`, `jsonb`, enum, and array value/codec flows;
 - ORM model metadata derived from schema snapshots;
 - mapper registry for model metadata reuse;
 - identity map for materialized entities;

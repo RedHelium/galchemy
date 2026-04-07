@@ -5,6 +5,7 @@ import galchemy/orm/mapper_registry
 import galchemy/orm/materializer
 import galchemy/orm/result
 import galchemy/schema/model
+import gleam/bit_array
 import gleam/option
 import gleam/string
 import gleam/time/calendar
@@ -27,6 +28,36 @@ pub fn scalar_codecs_encode_and_decode_test() {
 
   assert codec.encode(codec.bool(), True) == expression.Bool(True)
   assert codec.decode(codec.bool(), expression.Bool(True)) == Ok(True)
+}
+
+pub fn extended_codecs_encode_and_decode_test() {
+  let payload = bit_array.from_string("{\"name\":\"Ann\"}")
+
+  assert codec.encode(codec.bytea(), payload) == expression.Bytea(payload)
+  assert codec.decode(codec.bytea(), expression.Bytea(payload)) == Ok(payload)
+
+  assert codec.encode(codec.uuid(), "550e8400-e29b-41d4-a716-446655440000")
+    == expression.Uuid("550e8400-e29b-41d4-a716-446655440000")
+  assert codec.decode(
+      codec.uuid(),
+      expression.Uuid("550e8400-e29b-41d4-a716-446655440000"),
+    )
+    == Ok("550e8400-e29b-41d4-a716-446655440000")
+
+  assert codec.encode(codec.numeric(), "123.45")
+    == expression.Numeric("123.45")
+  assert codec.decode(codec.numeric(), expression.Numeric("123.45"))
+    == Ok("123.45")
+
+  assert codec.encode(codec.json(), "{\"name\":\"Ann\"}")
+    == expression.Json("{\"name\":\"Ann\"}")
+  assert codec.decode(codec.json(), expression.Json("{\"name\":\"Ann\"}"))
+    == Ok("{\"name\":\"Ann\"}")
+
+  assert codec.encode(codec.jsonb(), "{\"name\":\"Ann\"}")
+    == expression.Jsonb("{\"name\":\"Ann\"}")
+  assert codec.decode(codec.jsonb(), expression.Jsonb("{\"name\":\"Ann\"}"))
+    == Ok("{\"name\":\"Ann\"}")
 }
 
 pub fn temporal_and_nullable_codecs_test() {
@@ -145,6 +176,36 @@ pub fn custom_codecs_can_be_mapped_and_reused_in_declarative_models_test() {
         ordinal_position: 2,
       ),
     ]
+}
+
+pub fn array_and_enum_codecs_test() {
+  let int_array = codec.array(codec.int())
+  let role_enum = codec.enum_("user_role")
+
+  assert codec.encode(int_array, [1, 2, 3])
+    == expression.Array([
+      expression.Int(1),
+      expression.Int(2),
+      expression.Int(3),
+    ])
+  assert codec.decode(
+      int_array,
+      expression.Array([
+        expression.Int(1),
+        expression.Int(2),
+        expression.Int(3),
+      ]),
+    )
+    == Ok([1, 2, 3])
+
+  assert codec.sql_type_name(role_enum) == "user_role"
+  assert codec.encode(codec.codec(role_enum), "admin")
+    == expression.Enum(type_name: "user_role", value: "admin")
+  assert codec.decode(
+      codec.codec(role_enum),
+      expression.Enum(type_name: "user_role", value: "admin"),
+    )
+    == Ok("admin")
 }
 
 type UserId {
